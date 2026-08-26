@@ -73,25 +73,24 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 
     app.post('/register', async (req, res) => {
-        const { username, email, usertype, password } = req.body;
-        if (!['customer', 'flight-operator'].includes(usertype)) {
-            return res.status(400).json({ message: 'Invalid user type' });
+        const { username, email, password } = req.body;
+        if (!username?.trim() || !email?.trim() || !password) {
+            return res.status(400).json({ message: 'Username, email, and password are required' });
         }
-        let approval = 'approved';
         try {
-          
-            const existingUser = await User.findOne({ email });
+            const normalizedEmail = email.trim().toLowerCase();
+            const existingUser = await User.findOne({ email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') } });
             if (existingUser) {
                 return res.status(400).json({ message: 'User already exists' });
             }
 
-            if(usertype === 'flight-operator'){
-                approval = 'not-approved'
-            }
-
             const hashedPassword = await bcrypt.hash(password, 10);
             const newUser = new User({
-                username, email, usertype, password: hashedPassword, approval
+                username: username.trim(),
+                email: normalizedEmail,
+                usertype: 'customer',
+                password: hashedPassword,
+                approval: 'approved'
             });
             const userCreated = await newUser.save();
             return res.status(201).json({ ...publicUser(userCreated), token: jwt.sign({ userId: userCreated._id }, JWT_SECRET, { expiresIn: '2h' }) });
@@ -105,8 +104,7 @@ mongoose.connect(process.env.MONGODB_URI, {
     app.post('/login', async (req, res) => {
         const { email, password } = req.body;
         try {
-
-            const user = await User.findOne({ email });
+            const user = await User.findOne({ email: { $regex: new RegExp(`^${email?.trim()}$`, 'i') } });
     
             if (!user) {
                 return res.status(401).json({ message: 'Invalid email or password' });
@@ -141,14 +139,31 @@ mongoose.connect(process.env.MONGODB_URI, {
     app.post('/forgot-password', async (req, res) => {
         const { email } = req.body;
         if (!mailer) return res.status(503).json({ message: 'Email OTP is not configured. Add Brevo SMTP values to server/.env' });
-        const user = await User.findOne({ email: email?.trim().toLowerCase() });
+        const user = await User.findOne({ email: { $regex: new RegExp(`^${email?.trim()}$`, 'i') } });
         if (!user) return res.status(404).json({ message: 'Customer does not exist' });
         const resetCode = crypto.randomInt(100000, 1000000).toString();
         user.resetCodeHash = crypto.createHash('sha256').update(resetCode).digest('hex');
         user.resetCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
         await user.save();
+        console.log(`[Password Reset] Generated OTP for ${user.email}: ${resetCode}`);
         try {
-            await mailer.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to: user.email, subject: 'SKY Furaito password reset OTP', text: `Your OTP is ${resetCode}. It expires in 10 minutes.` });
+            const sender = process.env.SMTP_FROM || process.env.SMTP_USER;
+            await mailer.sendMail({
+                from: `"SKY Furaito" <${sender}>`,
+                to: user.email,
+                subject: 'SKY Furaito Password Reset OTP',
+                text: `Your OTP for password reset is ${resetCode}. It expires in 10 minutes.`,
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                        <h2 style="color: #0284c7; margin-top: 0;">SKY Furaito Password Reset</h2>
+                        <p style="color: #374151; font-size: 15px;">You requested a one-time verification code to reset your account password.</p>
+                        <div style="font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #111827; background: #f3f4f6; padding: 14px 20px; text-align: center; border-radius: 8px; margin: 24px 0;">
+                            ${resetCode}
+                        </div>
+                        <p style="color: #6b7280; font-size: 13px; margin-bottom: 0;">This OTP is valid for 10 minutes. If you did not request this password reset, you can safely ignore this email.</p>
+                    </div>
+                `
+            });
         } catch (error) {
             user.resetCodeHash = undefined;
             user.resetCodeExpires = undefined;
@@ -162,7 +177,7 @@ mongoose.connect(process.env.MONGODB_URI, {
     app.post('/forgot-password/confirm', async (req, res) => {
         const { email, otp, newPassword } = req.body;
         if (!email || !otp || typeof newPassword !== 'string' || newPassword.length < 6) return res.status(400).json({ message: 'Email, OTP, and a 6-character password are required' });
-        const user = await User.findOne({ email: email.trim().toLowerCase() });
+        const user = await User.findOne({ email: { $regex: new RegExp(`^${email?.trim()}$`, 'i') } });
         const codeHash = crypto.createHash('sha256').update(String(otp)).digest('hex');
         if (!user || !user.resetCodeExpires || user.resetCodeExpires < new Date() || user.resetCodeHash !== codeHash) return res.status(400).json({ message: 'OTP is invalid or expired' });
         user.password = await bcrypt.hash(newPassword, 10);
@@ -252,7 +267,7 @@ mongoose.connect(process.env.MONGODB_URI, {
         }
         try {
             const user = await User.findOneAndUpdate(
-                { _id: req.params.id, usertype: { $in: ['customer', 'flight-operator'] } },
+                { _id: req.params.id, usertype: { $in: ['customer', 'flight-operator', 'admin'] } },
                 { $set: { username: username.trim(), email: email.trim() } },
                 { new: true, runValidators: true }
             ).select('-password');
@@ -266,12 +281,12 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     app.post('/admin/users', requireAdmin, async (req, res) => {
         const { username, email, usertype, password } = req.body;
-        if (!username?.trim() || !email?.trim() || !['customer', 'flight-operator'].includes(usertype) || !password) {
-            return res.status(400).json({ message: 'Name, email, user type, and password are required' });
+        if (!username?.trim() || !email?.trim() || !['customer', 'flight-operator', 'admin'].includes(usertype) || !password) {
+            return res.status(400).json({ message: 'Name, email, valid user type (customer, flight-operator, admin), and password are required' });
         }
         try {
             const user = await User.create({
-                username: username.trim(), email: email.trim(), usertype,
+                username: username.trim(), email: email.trim().toLowerCase(), usertype,
                 password: await bcrypt.hash(password, 10), approval: 'approved'
             });
             const safeUser = user.toObject();
@@ -285,7 +300,10 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     app.delete('/admin/users/:id', requireAdmin, async (req, res) => {
         try {
-            const user = await User.findOneAndDelete({ _id: req.params.id, usertype: { $in: ['customer', 'flight-operator'] } });
+            if (req.user._id.toString() === req.params.id) {
+                return res.status(400).json({ message: 'You cannot delete your own admin account' });
+            }
+            const user = await User.findOneAndDelete({ _id: req.params.id, usertype: { $in: ['customer', 'flight-operator', 'admin'] } });
             if (!user) return res.status(404).json({ message: 'User not found' });
             await Booking.deleteMany({ user: user._id });
             res.json({ message: 'User deleted' });

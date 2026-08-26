@@ -14,9 +14,6 @@ const GeneralContextProvider = ({children}) => {
 
   const [ticketBookingDate, setTicketBookingDate] = useState();
 
-  const inputs = {username, email, usertype, password};
-
-
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -57,7 +54,7 @@ const GeneralContextProvider = ({children}) => {
   
   const register = async () =>{
     try{
-        await axios.post('http://localhost:6001/register', inputs)
+        await axios.post('http://localhost:6001/register', { username, email, password, usertype: 'customer' })
         .then( async (res)=>{
             localStorage.setItem('userId', res.data._id);
             localStorage.setItem('userType', res.data.usertype);
@@ -66,14 +63,7 @@ const GeneralContextProvider = ({children}) => {
             localStorage.setItem('token', res.data.token);
             axios.defaults.headers.common.Authorization = `Bearer ${res.data.token}`;
 
-            if(res.data.usertype === 'customer'){
-                navigate('/');
-            } else if(res.data.usertype === 'admin'){
-                navigate('/admin');
-            } else if(res.data.usertype === 'flight-operator'){
-              navigate('/flight-admin');
-            }
-
+            navigate('/');
         }).catch((err) =>{
             notify(err.response?.data?.message || "Registration failed", 'error');
             console.log(err);

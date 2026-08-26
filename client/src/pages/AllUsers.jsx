@@ -86,7 +86,9 @@ const AllUsers = () => {
           <input placeholder="Name" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} />
           <input type="email" placeholder="Email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} />
           <select value={newUser.usertype} onChange={(e) => setNewUser({ ...newUser, usertype: e.target.value })}>
-            <option value="customer">Customer</option><option value="flight-operator">Operator</option>
+            <option value="customer">Customer</option>
+            <option value="flight-operator">Flight Operator</option>
+            <option value="admin">Administrator</option>
           </select>
           <input type="password" placeholder="Temporary password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
           <button className="btn btn-primary" onClick={addUser}>Add user</button>
@@ -104,6 +106,14 @@ const AllUsers = () => {
           <table className="data-table">
             <thead><tr><th>User ID</th><th>Name</th><th>Email</th>{isAdmin && <th>Actions</th>}</tr></thead>
             <tbody>{users.filter(user=> user.usertype === 'flight-operator').map(renderUser)}</tbody>
+          </table>
+        </div>  
+
+        <h2>Administrators</h2>
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead><tr><th>User ID</th><th>Name</th><th>Email</th>{isAdmin && <th>Actions</th>}</tr></thead>
+            <tbody>{users.filter(user=> user.usertype === 'admin').map(renderUser)}</tbody>
           </table>
         </div>  
 
