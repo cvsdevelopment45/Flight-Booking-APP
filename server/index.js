@@ -73,10 +73,11 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 
     app.post('/register', async (req, res) => {
-        const { username, email, password } = req.body;
+        const { username, email, password, usertype } = req.body;
         if (!username?.trim() || !email?.trim() || !password) {
             return res.status(400).json({ message: 'Username, email, and password are required' });
         }
+        const accountType = usertype === 'flight-operator' ? 'flight-operator' : 'customer';
         try {
             const normalizedEmail = email.trim().toLowerCase();
             const existingUser = await User.findOne({ email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') } });
@@ -88,9 +89,9 @@ mongoose.connect(process.env.MONGODB_URI, {
             const newUser = new User({
                 username: username.trim(),
                 email: normalizedEmail,
-                usertype: 'customer',
+                usertype: accountType,
                 password: hashedPassword,
-                approval: 'approved'
+                approval: accountType === 'flight-operator' ? 'not-approved' : 'approved'
             });
             const userCreated = await newUser.save();
             return res.status(201).json({ ...publicUser(userCreated), token: jwt.sign({ userId: userCreated._id }, JWT_SECRET, { expiresIn: '2h' }) });
@@ -261,14 +262,24 @@ mongoose.connect(process.env.MONGODB_URI, {
     })
 
     app.put('/update-user/:id', requireAdmin, async (req, res) => {
-        const { username, email } = req.body;
+        const { username, email, usertype, approval } = req.body;
         if (typeof username !== 'string' || typeof email !== 'string' || !username.trim() || !email.trim()) {
             return res.status(400).json({ message: 'Name and email are required' });
         }
         try {
-            const user = await User.findOneAndUpdate(
-                { _id: req.params.id, usertype: { $in: ['customer', 'flight-operator', 'admin'] } },
-                { $set: { username: username.trim(), email: email.trim() } },
+            const updateFields = {
+                username: username.trim(),
+                email: email.trim().toLowerCase()
+            };
+            if (usertype && ['customer', 'flight-operator', 'admin'].includes(usertype)) {
+                updateFields.usertype = usertype;
+            }
+            if (approval && ['approved', 'not-approved', 'rejected'].includes(approval)) {
+                updateFields.approval = approval;
+            }
+            const user = await User.findByIdAndUpdate(
+                req.params.id,
+                { $set: updateFields },
                 { new: true, runValidators: true }
             ).select('-password');
             if (!user) return res.status(404).json({ message: 'User not found' });

@@ -39,8 +39,7 @@ const GeneralContextProvider = ({children}) => {
             } else if(res.data.usertype === 'admin'){
                 navigate('/admin');
             } else if(res.data.usertype === 'flight-operator'){
-              notify('Your operator account is awaiting admin approval.', 'info');
-              navigate('/');
+                navigate('/flight-admin');
             }
         }).catch((err) => {
           notify(err.response?.data?.message || "Incorrect email or password", 'error');
@@ -52,23 +51,30 @@ const GeneralContextProvider = ({children}) => {
     }
   }
   
-  const register = async () =>{
+  const register = async (selectedRole = 'customer', onOperatorSuccess = null) =>{
     try{
-        await axios.post('http://localhost:6001/register', { username, email, password, usertype: 'customer' })
-        .then( async (res)=>{
-            localStorage.setItem('userId', res.data._id);
-            localStorage.setItem('userType', res.data.usertype);
-            localStorage.setItem('username', res.data.username);
-            localStorage.setItem('email', res.data.email);
-            localStorage.setItem('token', res.data.token);
-            axios.defaults.headers.common.Authorization = `Bearer ${res.data.token}`;
+        const role = selectedRole || usertype || 'customer';
+        const res = await axios.post('http://localhost:6001/register', { username, email, password, usertype: role });
+        
+        if (res.data.usertype === 'flight-operator') {
+            notify('Registration submitted! Your operator account is pending admin approval before you can log in.', 'info');
+            if (onOperatorSuccess) {
+                onOperatorSuccess(true);
+            } else {
+                navigate('/auth');
+            }
+            return;
+        }
 
-            navigate('/');
-        }).catch((err) =>{
-            notify(err.response?.data?.message || "Registration failed", 'error');
-            console.log(err);
-        });
-    }catch(err){
+        localStorage.setItem('userId', res.data._id);
+        localStorage.setItem('userType', res.data.usertype);
+        localStorage.setItem('username', res.data.username);
+        localStorage.setItem('email', res.data.email);
+        localStorage.setItem('token', res.data.token);
+        axios.defaults.headers.common.Authorization = `Bearer ${res.data.token}`;
+        navigate('/');
+    } catch(err) {
+        notify(err.response?.data?.message || "Registration failed", 'error');
         console.log(err);
     }
   }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 
 const BookingTable = ({ bookings, onCancel, onModify, showContact = false }) => {
@@ -149,7 +149,6 @@ const BookingTable = ({ bookings, onCancel, onModify, showContact = false }) => 
               const displayStatus = (booking.bookingStatus === 'confirmed' && isDestinationCompleted) ? 'completed' : booking.bookingStatus;
               const canModify = onModify && displayStatus === 'confirmed' && !isDestinationCompleted;
               const canCancel = displayStatus === 'confirmed' && !isDestinationCompleted;
-              const scheduledTime = booking.flight?.departureTime || booking.journeyTime;
 
               const selectedFlightObj = availableRouteFlights.find((f) => f._id === editValues.flightId);
               const displayFlightId = editingId === booking._id && selectedFlightObj ? selectedFlightObj.flightId : booking.flightId;

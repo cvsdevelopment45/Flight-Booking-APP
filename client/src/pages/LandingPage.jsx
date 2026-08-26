@@ -23,13 +23,12 @@ const LandingPage = () => {
   const userId = localStorage.getItem('userId');
 
   useEffect(()=>{
-    
     if(localStorage.getItem('userType') === 'admin'){
       navigate('/admin');
     } else if(localStorage.getItem('userType') === 'flight-operator'){
       navigate('/flight-admin');
     }
-  }, []);
+  }, [navigate]);
 
   const [Flights, setFlights] = useState([]);
 
