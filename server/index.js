@@ -169,9 +169,9 @@ mongoose.connect(process.env.MONGODB_URI, {
             user.resetCodeExpires = undefined;
             await user.save();
             console.error('SMTP send failed:', error.message);
-            return res.status(502).json({ message: 'Brevo rejected the email. Check SMTP key and verified sender.' });
+            return res.status(502).json({ message: 'Failed to send OTP email. Please check SMTP configuration.' });
         }
-        res.json({ message: 'If the email is registered, an OTP has been sent.' });
+        res.json({ message: 'OTP sent to your registered email.' });
     });
 
     app.post('/forgot-password/confirm', async (req, res) => {
