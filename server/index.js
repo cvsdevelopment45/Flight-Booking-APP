@@ -3,6 +3,7 @@ import bodyParser from 'body-parser';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
+import 'dotenv/config';
 import { User, Booking, Flight } from './schemas.js';
 
 
@@ -16,7 +17,7 @@ app.use(cors());
 // mongoose setup
 
 const PORT = 6001;
-mongoose.connect('mongodb://localhost:27017/FlightBookingMERN', { 
+mongoose.connect(process.env.MONGODB_URI, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
     }
