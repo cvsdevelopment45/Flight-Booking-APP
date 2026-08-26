@@ -7,6 +7,7 @@ const AllFlights = () => {
     const [flights, setFlights] = useState([]);
     const navigate = useNavigate();
     const isAdmin = localStorage.getItem('userType') === 'admin';
+    const [newFlight, setNewFlight] = useState({ flightName: '', flightId: '', origin: '', destination: '', departureTime: '', arrivalTime: '', basePrice: '', totalSeats: '' });
   
     
     const fetchFlights = async () =>{
@@ -17,6 +18,28 @@ const AllFlights = () => {
         }
         )
       }
+
+    const updateNewFlight = (field, value) => setNewFlight({ ...newFlight, [field]: value });
+
+    const addFlight = async () => {
+      try {
+        await axios.post('http://localhost:6001/admin/flights', newFlight, { headers: { 'x-user-id': localStorage.getItem('userId') } });
+        setNewFlight({ flightName: '', flightId: '', origin: '', destination: '', departureTime: '', arrivalTime: '', basePrice: '', totalSeats: '' });
+        fetchFlights();
+      } catch (error) {
+        alert(error.response?.data?.message || 'Unable to add flight');
+      }
+    };
+
+    const deleteFlight = async (id) => {
+      if (!window.confirm('Delete this flight and its bookings?')) return;
+      try {
+        await axios.delete(`http://localhost:6001/admin/flights/${id}`, { headers: { 'x-user-id': localStorage.getItem('userId') } });
+        fetchFlights();
+      } catch (error) {
+        alert(error.response?.data?.message || 'Unable to delete flight');
+      }
+    };
       
       useEffect(()=>{
         fetchFlights();
@@ -25,40 +48,22 @@ const AllFlights = () => {
     return (
       <div className="allFlightsPage">
         <h1>All Flights</h1>
+        {isAdmin && <div className="admin-add-form flight-add-form">
+          {['flightName', 'flightId', 'origin', 'destination', 'departureTime', 'arrivalTime', 'basePrice', 'totalSeats'].map((field) => (
+            <input key={field} type={field.includes('Time') ? 'time' : ['basePrice', 'totalSeats'].includes(field) ? 'number' : 'text'} placeholder={field} value={newFlight[field]} onChange={(e) => updateNewFlight(field, e.target.value)} />
+          ))}
+          <button className="btn btn-primary" onClick={addFlight}>Add flight</button>
+        </div>}
   
-        <div className="allFlights">
-  
-          {flights.map((Flight)=>{
-            return(
-  
-                <div className="allFlights-Flight" key={Flight._id}>
-                  <p><b>_id:</b> {Flight._id}</p>
-                  <span>
-                    <p><b>Flight Id:</b> {Flight.flightId}</p>
-                    <p><b>Flight name:</b> {Flight.flightName}</p>
-                  </span>
-                  <span>
-                    <p><b>Starting station:</b> {Flight.origin}</p>
-                    <p><b>Departure time:</b> {Flight.departureTime}</p>
-                  </span>
-                  <span>
-                    <p><b>Destination:</b> {Flight.destination}</p>
-                    <p><b>Arrival time:</b> {Flight.arrivalTime}</p>
-                  </span>
-                  <span>
-                    <p><b>Base price:</b> {Flight.basePrice}</p>
-                    <p><b>Total seats:</b> {Flight.totalSeats}</p>
-                  </span>
-                  {isAdmin && <button className="btn btn-primary" onClick={() => navigate(`/edit-flight/${Flight._id}`)}>Edit flight</button>}
-                </div>
-            )
-          })}
-  
-  
-  
-  
-  
-   
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead><tr><th>Flight ID</th><th>Flight name</th><th>Origin</th><th>Departure</th><th>Destination</th><th>Arrival</th><th>Price</th><th>Seats</th>{isAdmin && <th>Actions</th>}</tr></thead>
+            <tbody>{flights.map((flight) => <tr key={flight._id}>
+              <td>{flight.flightId}</td><td>{flight.flightName}</td><td>{flight.origin}</td><td>{flight.departureTime}</td>
+              <td>{flight.destination}</td><td>{flight.arrivalTime}</td><td>{flight.basePrice}</td><td>{flight.totalSeats}</td>
+              {isAdmin && <td className="table-actions"><button className="btn btn-primary" onClick={() => navigate(`/edit-flight/${flight._id}`)}>Edit</button><button className="btn btn-danger" onClick={() => deleteFlight(flight._id)}>Delete</button></td>}
+            </tr>)}</tbody>
+          </table>
         </div>
       </div>
     )

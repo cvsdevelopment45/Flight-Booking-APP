@@ -17,6 +17,8 @@ import EditFlight from './pages/EditFlight';
 import FlightAdmin from './pages/FlightAdmin';
 import FlightBookings from './pages/FlightBookings.jsx';
 import Flights from './pages/Flights.jsx';
+import ChangePassword from './pages/ChangePassword';
+import Profile from './pages/Profile';
 
 function App() {
   return (
@@ -28,6 +30,8 @@ function App() {
         <Route path='/auth' element={<LoginProtector> <Authenticate /> </LoginProtector>} />
         <Route path='/book-Flight/:id' element={<AuthProtector> <BookFlight /> </AuthProtector>} />
         <Route path='/bookings' element={<AuthProtector> <Bookings /> </AuthProtector>} />
+        <Route path='/change-password' element={<AuthProtector> <ChangePassword /> </AuthProtector>} />
+        <Route path='/profile' element={<AuthProtector> <Profile /> </AuthProtector>} />
 
         <Route path='/admin' element={<AuthProtector><Admin /> </AuthProtector>} />
         <Route path='/all-users' element={<AuthProtector><AllUsers /> </AuthProtector>} />

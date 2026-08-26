@@ -1,23 +1,23 @@
 .all-users-page{
-    width: 100%;
-    height: 100vh;
-    padding-top: 13vh;
-    padding-left: 3vw
+    width: min(1100px, 90%);
+    min-height: 100vh;
+    padding: 120px 0 60px;
+    margin: auto;
 }
 .all-users-page h2{
     margin-bottom: 4vh;
-    color: rgba(77, 109, 134, 0.934);
+    color: var(--blue-dark);
 }
 
 
 .all-users{
-    width: 80%;
-    height: 30vh;
-    margin-bottom: 4vh;
+    width: 100%;
+    min-height: 120px;
+    margin-bottom: 45px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    overflow-y: scroll;
+    gap: 12px;
+    overflow-y: auto;
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
@@ -26,9 +26,13 @@
 }
 
 .all-users .user{
-    width: 70%;
-    background-color: rgba(231, 239, 236, 0.416);
-    border-radius: 0.8rem;
+    width: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    background-color: rgba(255,255,255,0.78);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
     display: flex;
     padding: 2vh 2vw;
     gap: 2vw;
@@ -36,9 +40,14 @@
 .all-users .user p{
 
     margin: 0;
-    color: rgb(36, 132, 173);
+    color: var(--muted);
 }
 .all-users .user p b{
     font-weight: 600;
-    color: rgb(32, 97, 124);
+    color: var(--blue-dark);
+}
+
+@media (max-width: 720px) {
+    .all-users-page { padding-top: 100px; }
+    .all-users .user { align-items: flex-start; flex-direction: column; gap: 8px; }
 }

@@ -14,7 +14,7 @@ const Navbar = () => {
       <div className="navbar">
         {!usertype ? (
           <>
-            <div className="navbar-header">
+            <div className="navbar-header" onClick={() => navigate('/')} role="button" tabIndex="0">
               <img src={logo} alt="Logo" className="navbar-logo" />
               <h3>SKY Furaito</h3>
             </div>
@@ -27,19 +27,20 @@ const Navbar = () => {
           <>
             {usertype === 'customer' ? (
               <>
-                <div className="navbar-header">
+                <div className="navbar-header" onClick={() => navigate('/')} role="button" tabIndex="0">
                   <img src={logo} alt="Logo" className="navbar-logo" />
                   <h3>SKY Furaito</h3>
                 </div>
                 <div className="nav-options">
                   <p onClick={() => navigate('/')}>Home</p>
                   <p onClick={() => navigate('/bookings')}>Bookings</p>
+                  <p onClick={() => navigate('/profile')}>Profile</p>
                   <p onClick={logout}>Logout</p>
                 </div>
               </>
             ) : usertype === 'admin' ? (
               <>
-                <div className="navbar-header">
+                <div className="navbar-header" onClick={() => navigate('/')} role="button" tabIndex="0">
                   <img src={logo} alt="Logo" className="navbar-logo" />
                   <h3>SKY Furaito (Admin)</h3>
                 </div>
@@ -48,12 +49,13 @@ const Navbar = () => {
                   <p onClick={() => navigate('/all-users')}>Users</p>
                   <p onClick={() => navigate('/all-bookings')}>Bookings</p>
                   <p onClick={() => navigate('/all-flights')}>Flights</p>
+                  <p onClick={() => navigate('/profile')}>Profile</p>
                   <p onClick={logout}>Logout</p>
                 </div>
               </>
             ) : usertype === 'flight-operator' ? (
               <>
-                <div className="navbar-header">
+                <div className="navbar-header" onClick={() => navigate('/')} role="button" tabIndex="0">
                   <img src={logo} alt="Logo" className="navbar-logo" />
                   <h3>SKY Furaito (Operator)</h3>
                 </div>
@@ -62,6 +64,7 @@ const Navbar = () => {
                   <p onClick={() => navigate('/flight-bookings')}>Bookings</p>
                   <p onClick={() => navigate('/flights')}>Flights</p>
                   <p onClick={() => navigate('/new-flight')}>Add Flight</p>
+                  <p onClick={() => navigate('/profile')}>Profile</p>
                   <p onClick={logout}>Logout</p>
                 </div>
               </>

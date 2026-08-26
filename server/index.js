@@ -27,6 +27,17 @@ const requireAdmin = async (req, res, next) => {
     }
 };
 
+const requireUser = async (req, res, next) => {
+    try {
+        const user = await User.findById(req.header('x-user-id'));
+        if (!user) return res.status(401).json({ message: 'Login required' });
+        req.user = user;
+        next();
+    } catch (error) {
+        return res.status(401).json({ message: 'Login required' });
+    }
+};
+
 // mongoose setup
 
 const PORT = 6001;
@@ -87,6 +98,29 @@ mongoose.connect(process.env.MONGODB_URI, {
           console.log(error);
           return res.status(500).json({ message: 'Server Error' });
         }
+    });
+
+    app.put('/change-password', requireUser, async (req, res) => {
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+            return res.status(400).json({ message: 'New password must be at least 6 characters' });
+        }
+        if (!await bcrypt.compare(currentPassword, req.user.password)) {
+            return res.status(400).json({ message: 'Current password is incorrect' });
+        }
+        req.user.password = await bcrypt.hash(newPassword, 10);
+        await req.user.save();
+        res.json({ message: 'Password changed successfully' });
+    });
+
+    app.put('/profile', requireUser, async (req, res) => {
+        const { username } = req.body;
+        if (typeof username !== 'string' || !username.trim()) {
+            return res.status(400).json({ message: 'Name is required' });
+        }
+        req.user.username = username.trim();
+        await req.user.save();
+        res.json({ username: req.user.username });
     });
       
 
@@ -168,6 +202,36 @@ mongoose.connect(process.env.MONGODB_URI, {
         }
     });
 
+    app.post('/admin/users', requireAdmin, async (req, res) => {
+        const { username, email, usertype, password } = req.body;
+        if (!username?.trim() || !email?.trim() || !['customer', 'flight-operator'].includes(usertype) || !password) {
+            return res.status(400).json({ message: 'Name, email, user type, and password are required' });
+        }
+        try {
+            const user = await User.create({
+                username: username.trim(), email: email.trim(), usertype,
+                password: await bcrypt.hash(password, 10), approval: 'approved'
+            });
+            const safeUser = user.toObject();
+            delete safeUser.password;
+            res.status(201).json(safeUser);
+        } catch (error) {
+            if (error.code === 11000) return res.status(409).json({ message: 'Email already exists' });
+            res.status(500).json({ message: 'Server Error' });
+        }
+    });
+
+    app.delete('/admin/users/:id', requireAdmin, async (req, res) => {
+        try {
+            const user = await User.findOneAndDelete({ _id: req.params.id, usertype: { $in: ['customer', 'flight-operator'] } });
+            if (!user) return res.status(404).json({ message: 'User not found' });
+            await Booking.deleteMany({ user: user._id });
+            res.json({ message: 'User deleted' });
+        } catch (error) {
+            res.status(500).json({ message: 'Server Error' });
+        }
+    });
+
 
     // Add flight
 
@@ -186,6 +250,31 @@ mongoose.connect(process.env.MONGODB_URI, {
             console.log(err);
         }
     })
+
+    app.post('/admin/flights', requireAdmin, async (req, res) => {
+        const { flightName, flightId, origin, destination, departureTime, arrivalTime, basePrice, totalSeats } = req.body;
+        if (!flightName?.trim() || !flightId?.trim() || !origin || !destination || !departureTime || !arrivalTime || Number(basePrice) <= 0 || Number(totalSeats) <= 0) {
+            return res.status(400).json({ message: 'Complete valid flight details are required' });
+        }
+        try {
+            const flight = await Flight.create({ flightName: flightName.trim(), flightId: flightId.trim(), origin, destination, departureTime, arrivalTime, basePrice: Number(basePrice), totalSeats: Number(totalSeats) });
+            res.status(201).json(flight);
+        } catch (error) {
+            if (error.code === 11000) return res.status(409).json({ message: 'Flight ID already exists' });
+            res.status(500).json({ message: 'Server Error' });
+        }
+    });
+
+    app.delete('/admin/flights/:id', requireAdmin, async (req, res) => {
+        try {
+            const flight = await Flight.findByIdAndDelete(req.params.id);
+            if (!flight) return res.status(404).json({ message: 'Flight not found' });
+            await Booking.deleteMany({ flight: flight._id });
+            res.json({ message: 'Flight deleted' });
+        } catch (error) {
+            res.status(500).json({ message: 'Server Error' });
+        }
+    });
 
     // update flight
     
@@ -300,6 +389,24 @@ mongoose.connect(process.env.MONGODB_URI, {
             console.log(err);
         }
     })
+
+    app.put('/admin/bookings/:id', requireAdmin, async (req, res) => {
+        const { journeyDate, journeyTime, seatClass } = req.body;
+        if (!journeyDate || !journeyTime || !seatClass) {
+            return res.status(400).json({ message: 'Journey date, time, and seat class are required' });
+        }
+        try {
+            const booking = await Booking.findByIdAndUpdate(
+                req.params.id,
+                { $set: { journeyDate, journeyTime, seatClass } },
+                { new: true, runValidators: true }
+            );
+            if (!booking) return res.status(404).json({ message: 'Booking not found' });
+            res.json(booking);
+        } catch (error) {
+            res.status(500).json({ message: 'Server Error' });
+        }
+    });
 
 
 
