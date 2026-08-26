@@ -63,7 +63,7 @@ const EditFlight = () => {
       const inputs = {_id: id,flightName, flightId, origin, destination, 
         departureTime: startTime, arrivalTime, basePrice, totalSeats};
   
-      await axios.put('http://localhost:6001/update-flight', inputs).then(
+      await axios.put('http://localhost:6001/update-flight', inputs, { headers: { 'x-user-id': localStorage.getItem('userId') } }).then(
         async (response)=>{
           alert('Flight updated successfully!!');
           setFlightName('');

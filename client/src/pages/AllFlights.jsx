@@ -6,6 +6,7 @@ import '../styles/AllFlights.css';
 const AllFlights = () => {
     const [flights, setFlights] = useState([]);
     const navigate = useNavigate();
+    const isAdmin = localStorage.getItem('userType') === 'admin';
   
     
     const fetchFlights = async () =>{
@@ -48,6 +49,7 @@ const AllFlights = () => {
                     <p><b>Base price:</b> {Flight.basePrice}</p>
                     <p><b>Total seats:</b> {Flight.totalSeats}</p>
                   </span>
+                  {isAdmin && <button className="btn btn-primary" onClick={() => navigate(`/edit-flight/${Flight._id}`)}>Edit flight</button>}
                 </div>
             )
           })}

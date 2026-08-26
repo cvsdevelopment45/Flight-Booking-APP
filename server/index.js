@@ -14,6 +14,19 @@ app.use(bodyParser.json({limit: "30mb", extended: true}))
 app.use(bodyParser.urlencoded({limit: "30mb", extended: true}));
 app.use(cors());
 
+const requireAdmin = async (req, res, next) => {
+    try {
+        const user = await User.findById(req.header('x-user-id'));
+        if (!user || user.usertype !== 'admin') {
+            return res.status(403).json({ message: 'Admin access required' });
+        }
+        req.user = user;
+        next();
+    } catch (error) {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+};
+
 // mongoose setup
 
 const PORT = 6001;
@@ -79,7 +92,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     // Approve flight operator
 
-    app.post('/approve-operator', async(req, res)=>{
+    app.post('/approve-operator', requireAdmin, async(req, res)=>{
         const {id} = req.body;
         try{
             
@@ -94,7 +107,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     // reject flight operator
 
-    app.post('/reject-operator', async(req, res)=>{
+    app.post('/reject-operator', requireAdmin, async(req, res)=>{
         const {id} = req.body;
         try{
             
@@ -136,6 +149,25 @@ mongoose.connect(process.env.MONGODB_URI, {
         }
     })
 
+    app.put('/update-user/:id', requireAdmin, async (req, res) => {
+        const { username, email } = req.body;
+        if (typeof username !== 'string' || typeof email !== 'string' || !username.trim() || !email.trim()) {
+            return res.status(400).json({ message: 'Name and email are required' });
+        }
+        try {
+            const user = await User.findOneAndUpdate(
+                { _id: req.params.id, usertype: { $in: ['customer', 'flight-operator'] } },
+                { $set: { username: username.trim(), email: email.trim() } },
+                { new: true, runValidators: true }
+            ).select('-password');
+            if (!user) return res.status(404).json({ message: 'User not found' });
+            res.json(user);
+        } catch (error) {
+            if (error.code === 11000) return res.status(409).json({ message: 'Email already exists' });
+            res.status(500).json({ message: 'Server Error' });
+        }
+    });
+
 
     // Add flight
 
@@ -157,7 +189,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     // update flight
     
-    app.put('/update-flight', async (req, res)=>{
+    app.put('/update-flight', requireAdmin, async (req, res)=>{
         const {_id, flightName, flightId, origin, destination, 
                     departureTime, arrivalTime, basePrice, totalSeats} = req.body;
         try{

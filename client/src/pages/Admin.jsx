@@ -42,7 +42,7 @@ const Admin = () => {
   const approveRequest = async (id) =>{
       try{
 
-          await axios.post('http://localhost:6001/approve-operator', {id}).then(
+          await axios.post('http://localhost:6001/approve-operator', {id}, { headers: { 'x-user-id': localStorage.getItem('userId') } }).then(
             (response)=>{
               alert("Operator approved!!");
               fetchData();
@@ -57,7 +57,7 @@ const Admin = () => {
   const rejectRequest = async (id) =>{
     try{
 
-      await axios.post('http://localhost:6001/reject-operator', {id}).then(
+      await axios.post('http://localhost:6001/reject-operator', {id}, { headers: { 'x-user-id': localStorage.getItem('userId') } }).then(
         (response)=>{
           alert("Operator rejected!!");
           fetchData();

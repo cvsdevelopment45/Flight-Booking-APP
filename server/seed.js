@@ -11,20 +11,31 @@ const users = [
     { username: 'Demo Operator', email: 'operator@example.com', usertype: 'flight-operator', approval: 'approved' }
 ];
 
-const flights = [
-    {
-        flightName: 'Skyline Express', flightId: 'SK101', origin: 'Chennai', destination: 'Bengaluru',
-        departureTime: '08:30', arrivalTime: '09:40', basePrice: 4200, totalSeats: 180
-    },
-    {
-        flightName: 'Coastal Air', flightId: 'CA202', origin: 'Mumbai', destination: 'Delhi',
-        departureTime: '14:15', arrivalTime: '16:25', basePrice: 5800, totalSeats: 160
-    },
-    {
-        flightName: 'Southern Star', flightId: 'SS303', origin: 'Hyderabad', destination: 'Kolkata',
-        departureTime: '19:45', arrivalTime: '22:05', basePrice: 5100, totalSeats: 150
-    }
+const cities = [
+    'Chennai', 'Banglore', 'Hyderabad', 'Mumbai', 'Indore', 'Delhi',
+    'Pune', 'Trivendrum', 'Bhopal', 'Kolkata', 'varanasi', 'Jaipur'
 ];
+
+const flights = cities.flatMap((origin, originIndex) => cities
+    .filter((destination) => destination !== origin)
+    .map((destination, destinationIndex) => {
+        const routeNumber = originIndex * (cities.length - 1) + destinationIndex + 1;
+        const departureHour = 5 + (routeNumber * 2) % 16;
+        const durationHours = 1 + routeNumber % 3;
+        const departureMinutes = routeNumber % 2 === 0 ? '15' : '45';
+        const arrivalHour = (departureHour + durationHours) % 24;
+
+        return {
+            flightName: `Skyline ${String(routeNumber).padStart(3, '0')}`,
+            flightId: `SK${String(routeNumber).padStart(3, '0')}`,
+            origin,
+            destination,
+            departureTime: `${String(departureHour).padStart(2, '0')}:${departureMinutes}`,
+            arrivalTime: `${String(arrivalHour).padStart(2, '0')}:${departureMinutes}`,
+            basePrice: 3500 + (routeNumber % 8) * 450,
+            totalSeats: 150 + (routeNumber % 4) * 10
+        };
+    }));
 
 async function seed() {
     if (!process.env.MONGODB_URI) {
@@ -41,6 +52,8 @@ async function seed() {
             { upsert: true }
         );
     }
+
+    await Flight.deleteMany({ flightId: { $in: ['SK101', 'CA202', 'SS303'] } });
 
     for (const flight of flights) {
         await Flight.updateOne({ flightId: flight.flightId }, { $set: flight }, { upsert: true });
