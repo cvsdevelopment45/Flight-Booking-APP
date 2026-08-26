@@ -33,20 +33,22 @@ const FlightBookings = () => {
   }, [])
 
   const fetchBookings = async () =>{
-    await axios.get('http://localhost:6001/fetch-bookings').then(
-      (response)=>{
-        setBookings(response.data.reverse());
-      }
-    )
+    try {
+      const response = await axios.get('http://localhost:6001/fetch-bookings');
+      setBookings(response.data.reverse());
+    } catch (error) {
+      notify(error.response?.data?.message || 'Unable to fetch bookings', 'error');
+    }
   }
 
   const cancelTicket = async (id) =>{
-    await axios.put(`http://localhost:6001/cancel-ticket/${id}`).then(
-      (response)=>{
-        notify("Ticket cancelled!!", 'success');
-        fetchBookings();
-      }
-    )
+    try {
+      await axios.put(`http://localhost:6001/cancel-ticket/${id}`);
+      notify("Ticket cancelled!!", 'success');
+      fetchBookings();
+    } catch (error) {
+      notify(error.response?.data?.message || 'Unable to cancel ticket', 'error');
+    }
   }
 
   return (
@@ -96,23 +98,18 @@ const FlightBookings = () => {
                       {booking.bookingStatus === 'confirmed' ? <p><b>Seats:</b> {booking.seats}</p> : ""}
                     </span>
                     <span>
-                      <p><b>Booking date:</b> {booking.bookingDate.slice(0,10)}</p>
-                      <p><b>Journey date:</b> {booking.journeyDate.slice(0,10)}</p>
+                      <p><b>Booking date:</b> {booking.bookingDate?.slice(0,10)}</p>
+                      <p><b>Journey date:</b> {booking.journeyDate?.slice(0,10)}</p>
                     </span>
                     <span>
                       <p><b>Journey Time:</b> {booking.journeyTime}</p>
                       <p><b>Total price:</b> {booking.totalPrice}</p>
                     </span>
-                      {booking.bookingStatus === 'cancelled' ?
-                        <p style={{color: "red"}}><b>Booking status:</b> {booking.bookingStatus}</p>
-                        :
-                        <p><b>Booking status:</b> {booking.bookingStatus}</p>
-                      }
+                    <p><b>Booking status:</b> <span className={`status status-${booking.bookingStatus}`}>{booking.bookingStatus}</span></p>
                     {booking.bookingStatus === 'confirmed' ?
                       <div>
                         <button className="btn btn-danger" onClick={()=> cancelTicket(booking._id)}>Cancel Ticket</button>
                       </div>
-                    
                     :
                     <></>}
                   </div>

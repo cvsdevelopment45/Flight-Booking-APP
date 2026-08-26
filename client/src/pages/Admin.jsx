@@ -19,54 +19,46 @@ const Admin = () => {
   }, [])
 
   const fetchData = async () =>{
-    await axios.get('http://localhost:6001/fetch-users').then(
-      (response)=>{
-        
-        setUserCount(response.data.length -1);
-        setUsers(response.data.filter(user => user.approval === 'not-approved'));
-      }
-    );
-    await axios.get('http://localhost:6001/fetch-bookings').then(
-      (response)=>{
-        setbookingCount(response.data.length);
-      }
-    );
-    await axios.get('http://localhost:6001/fetch-flights').then(
-      (response)=>{
-        setFlightsCount(response.data.length);
-      }
-    );
+    try {
+      const usersRes = await axios.get('http://localhost:6001/fetch-users');
+      setUserCount(usersRes.data.length - 1);
+      setUsers(usersRes.data.filter(user => user.approval === 'not-approved'));
+    } catch (err) {
+      console.error(err);
+    }
+    try {
+      const bookingsRes = await axios.get('http://localhost:6001/fetch-bookings');
+      setbookingCount(bookingsRes.data.length);
+    } catch (err) {
+      console.error(err);
+    }
+    try {
+      const flightsRes = await axios.get('http://localhost:6001/fetch-flights');
+      setFlightsCount(flightsRes.data.length);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
 
 
   const approveRequest = async (id) =>{
       try{
-
-          await axios.post('http://localhost:6001/approve-operator', {id}).then(
-            (response)=>{
-              notify("Operator approved!!", 'success');
-              fetchData();
-            }
-          )
-
+          await axios.post('http://localhost:6001/approve-operator', {id});
+          notify("Operator approved!!", 'success');
+          fetchData();
       }catch(err){
-
+          notify(err.response?.data?.message || 'Unable to approve operator', 'error');
       }
   }
 
   const rejectRequest = async (id) =>{
     try{
-
-      await axios.post('http://localhost:6001/reject-operator', {id}).then(
-        (response)=>{
-          notify("Operator rejected!!", 'success');
-          fetchData();
-        }
-      )
-
+      await axios.post('http://localhost:6001/reject-operator', {id});
+      notify("Operator rejected!!", 'success');
+      fetchData();
     }catch(err){
-
+      notify(err.response?.data?.message || 'Unable to reject operator', 'error');
     }
   }
 

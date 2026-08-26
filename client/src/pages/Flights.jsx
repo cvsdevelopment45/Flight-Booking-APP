@@ -2,6 +2,7 @@ import axios from 'axios';
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import '../styles/AllFlights.css';
+import { notify } from '../utils/notify';
 
 const Flights = () => {
   const [userDetails, setUserDetails] = useState();
@@ -30,13 +31,13 @@ const Flights = () => {
 
   
   const fetchFlights = async () =>{
-    await axios.get('http://localhost:6001/fetch-flights').then(
-      (response)=>{
-        setFlights(response.data);
-        console.log(response.data)
-      }
-      )
+    try {
+      const response = await axios.get('http://localhost:6001/fetch-flights');
+      setFlights(response.data);
+    } catch (error) {
+      notify(error.response?.data?.message || 'Unable to fetch flights', 'error');
     }
+  }
     
     useEffect(()=>{
       fetchFlights();

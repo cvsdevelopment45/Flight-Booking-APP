@@ -130,6 +130,8 @@
 
 .status-confirmed { background: #d9f3ee; color: #176b5b; }
 .status-cancelled { background: #fde2e2; color: #a33b3b; }
+.status-completed { background: #e0e7ff; color: #3730a3; }
+.status-pending { background: #fef3c7; color: #92400e; }
 
 .admin-add-form {
   display: flex;

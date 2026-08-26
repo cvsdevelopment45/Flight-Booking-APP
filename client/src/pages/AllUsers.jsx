@@ -18,11 +18,12 @@ const AllUsers = () => {
   },[]);
 
   const fetchUsers = async () =>{
-    await axios.get('http://localhost:6001/fetch-users').then(
-      (response) =>{
-        setUsers(response.data);
-      }
-    )
+    try {
+      const response = await axios.get('http://localhost:6001/fetch-users');
+      setUsers(response.data);
+    } catch (error) {
+      notify(error.response?.data?.message || 'Unable to fetch users', 'error');
+    }
   }
 
   const startEditing = (user) => {

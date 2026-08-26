@@ -13,28 +13,33 @@ const AllBookings = () => {
   }, [])
 
   const fetchBookings = async () =>{
-    await axios.get('http://localhost:6001/fetch-bookings').then(
-      (response)=>{
-        setBookings(response.data.reverse());
-      }
-    )
+    try {
+      const response = await axios.get('http://localhost:6001/fetch-bookings');
+      setBookings(response.data.reverse());
+    } catch (error) {
+      notify(error.response?.data?.message || 'Unable to fetch bookings', 'error');
+    }
   }
 
   const cancelTicket = async (id) =>{
-    await axios.put(`http://localhost:6001/cancel-ticket/${id}`).then(
-      (response)=>{
-        notify("Ticket cancelled!!", 'success');
-        fetchBookings();
-      }
-    )
+    try {
+      await axios.put(`http://localhost:6001/cancel-ticket/${id}`);
+      notify("Ticket cancelled!!", 'success');
+      fetchBookings();
+    } catch (error) {
+      notify(error.response?.data?.message || 'Unable to cancel ticket', 'error');
+    }
   }
 
   const modifyBooking = async (id, values) => {
     try {
       await axios.put(`http://localhost:6001/admin/bookings/${id}`, values);
+      notify("Booking modified successfully!", 'success');
       fetchBookings();
+      return true;
     } catch (error) {
       notify(error.response?.data?.message || 'Unable to modify booking', 'error');
+      return false;
     }
   }
 

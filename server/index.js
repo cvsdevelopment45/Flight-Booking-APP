@@ -398,7 +398,6 @@ mongoose.connect(process.env.MONGODB_URI, {
     // fetch flights
 
     app.get('/fetch-flights', async (req, res)=>{
-        
         try{
             const query = {};
             if (req.query.origin && req.query.destination && req.query.roundTrip === 'true') {
@@ -419,7 +418,26 @@ mongoose.connect(process.env.MONGODB_URI, {
                 return { $gte: start, $lt: end };
             };
             const flights = await Flight.find(query);
-            const results = await Promise.all(flights.map(async (flight) => {
+            const now = new Date();
+
+            // Filter out flights that have already departed if a specific journey date was searched
+            const futureFlights = flights.filter((flight) => {
+                const isReturnLeg = req.query.roundTrip === 'true' && req.query.origin && flight.origin === req.query.destination;
+                const targetDateStr = isReturnLeg ? req.query.returnDate : req.query.journeyDate;
+
+                if (!targetDateStr) return true; // return all flights if no journey date filter was passed (e.g. admin panel)
+
+                const [year, month, day] = String(targetDateStr).split('-').map(Number);
+                if (!year || !month || !day) return true;
+
+                const depTimeStr = flight.departureTime || '00:00';
+                const [depH, depM] = depTimeStr.split(':').map(Number);
+                const flightDepartureDateTime = new Date(year, month - 1, day, depH || 0, depM || 0, 0, 0);
+
+                return flightDepartureDateTime > now;
+            });
+
+            const results = await Promise.all(futureFlights.map(async (flight) => {
                 const isReturnLeg = req.query.roundTrip === 'true' && req.query.origin && flight.origin === req.query.destination;
                 const journeyFilter = dayRange(isReturnLeg ? req.query.returnDate : (req.query.journeyDate || req.query.scheduleDate));
                 const bookings = await Booking.find({
@@ -454,10 +472,70 @@ mongoose.connect(process.env.MONGODB_URI, {
         }
     })
 
+    // Helper to calculate destination arrival datetime for a booking
+    const getBookingArrivalDateTime = (booking, flight) => {
+        if (!booking.journeyDate) return null;
+        const journey = new Date(booking.journeyDate);
+        if (isNaN(journey.getTime())) return null;
+
+        const arrTimeStr = (flight && flight.arrivalTime) || booking.flight?.arrivalTime;
+        const depTimeStr = booking.journeyTime || (flight && flight.departureTime) || booking.flight?.departureTime;
+
+        let arrivalDate = new Date(journey);
+
+        if (arrTimeStr && arrTimeStr.includes(':')) {
+            const [arrH, arrM] = arrTimeStr.split(':').map(Number);
+            arrivalDate.setHours(arrH || 0, arrM || 0, 0, 0);
+
+            if (depTimeStr && depTimeStr.includes(':')) {
+                const [depH, depM] = depTimeStr.split(':').map(Number);
+                if (arrH < depH || (arrH === depH && arrM < depM)) {
+                    arrivalDate.setDate(arrivalDate.getDate() + 1);
+                }
+            }
+            return arrivalDate;
+        }
+
+        if (depTimeStr && depTimeStr.includes(':')) {
+            const [depH, depM] = depTimeStr.split(':').map(Number);
+            arrivalDate.setHours((depH || 0) + 2, depM || 0, 0, 0);
+            return arrivalDate;
+        }
+
+        arrivalDate.setHours(23, 59, 59, 999);
+        return arrivalDate;
+    };
+
+    const updateCompletedBookings = async (extraQuery = {}) => {
+        try {
+            const confirmedBookings = await Booking.find({ ...extraQuery, bookingStatus: 'confirmed' }).populate('flight');
+            const now = new Date();
+            const updateIds = [];
+
+            for (const booking of confirmedBookings) {
+                const arrivalDate = getBookingArrivalDateTime(booking, booking.flight);
+                if (arrivalDate && now >= arrivalDate) {
+                    updateIds.push(booking._id);
+                    booking.bookingStatus = 'completed';
+                }
+            }
+
+            if (updateIds.length > 0) {
+                await Booking.updateMany({ _id: { $in: updateIds } }, { $set: { bookingStatus: 'completed' } });
+            }
+        } catch (err) {
+            console.error('Error updating completed bookings:', err);
+        }
+    };
+
+    // Periodically update completed bookings
+    setInterval(() => {
+        updateCompletedBookings();
+    }, 60 * 1000);
+
     // fetch all bookings
 
     app.get('/fetch-bookings', requireUser, async (req, res)=>{
-        
         try{
             let query = {};
             if (req.user.usertype === 'customer') query.user = req.user._id;
@@ -465,11 +543,15 @@ mongoose.connect(process.env.MONGODB_URI, {
                 const operatorFlights = await Flight.find({ operator: req.user._id }).select('_id');
                 query.flight = { $in: operatorFlights.map((flight) => flight._id) };
             }
-            const bookings = await Booking.find(query);
+            
+            await updateCompletedBookings(query);
+
+            const bookings = await Booking.find(query).populate('flight');
             res.json(bookings);
 
         }catch(err){
             console.log(err);
+            res.status(500).json({ message: 'Server Error' });
         }
     })
 
@@ -487,6 +569,16 @@ mongoose.connect(process.env.MONGODB_URI, {
             if (!selectedFlight || !allowedClasses.includes(seatClass) || !Array.isArray(passengers) || passengers.length < 1 || passengers.length > 9 || Number.isNaN(journey.getTime()) || journey < today) {
                 return res.status(400).json({ message: 'Invalid booking details' });
             }
+
+            // Verify that departure date and time is in the future
+            const [depH, depM] = (journeyTime || selectedFlight.departureTime || '00:00').split(':').map(Number);
+            const [jYear, jMonth, jDay] = String(journeyDate).slice(0, 10).split('-').map(Number);
+            const flightDepartureDateTime = new Date(jYear, jMonth - 1, jDay, depH || 0, depM || 0, 0, 0);
+
+            if (flightDepartureDateTime <= new Date()) {
+                return res.status(400).json({ message: 'Cannot book a flight for a past date or departure time' });
+            }
+
             if (passengers.some((passenger) => typeof passenger.name !== 'string' || !passenger.name.trim() || Number(passenger.age) < 0 || Number(passenger.age) > 120)) {
                 return res.status(400).json({ message: 'Passenger names and ages are invalid' });
             }
@@ -509,12 +601,13 @@ mongoose.connect(process.env.MONGODB_URI, {
                 }
             }
             const booking = new Booking({ user: req.user._id, flight: selectedFlight._id, flightName: selectedFlight.flightName, flightId: selectedFlight.flightId, departure: selectedFlight.origin, destination: selectedFlight.destination,
-                                            email, mobile, passengers, totalPrice: selectedFlight.basePrice * passengers.length, journeyDate: journey, journeyTime, seatClass, seats});
+                                            email, mobile, passengers, totalPrice: selectedFlight.basePrice * passengers.length, journeyDate: journey, journeyTime: journeyTime || selectedFlight.departureTime, seatClass, seats});
             await booking.save();
 
             res.json({message: 'Booking successful!!'});
         }catch(err){
             console.log(err);
+            res.status(500).json({ message: 'Server Error' });
         }
     })
 
@@ -522,52 +615,151 @@ mongoose.connect(process.env.MONGODB_URI, {
     // cancel ticket
 
     app.put('/cancel-ticket/:id', requireUser, async (req, res)=>{
-        const id = await req.params.id;
         try{
-            const booking = await Booking.findById(req.params.id);
+            const booking = await Booking.findById(req.params.id).populate('flight');
             if (!booking) return res.status(404).json({ message: 'Booking not found' });
             if (req.user.usertype !== 'admin' && booking.user.toString() !== req.user._id.toString()) {
                 return res.status(403).json({ message: 'Access denied' });
             }
-            if (booking.bookingStatus !== 'confirmed') return res.status(400).json({ message: 'Booking is already cancelled' });
+            const arrivalDate = getBookingArrivalDateTime(booking, booking.flight);
+            if ((arrivalDate && new Date() >= arrivalDate) || booking.bookingStatus === 'completed') {
+                if (booking.bookingStatus !== 'completed') {
+                    booking.bookingStatus = 'completed';
+                    await booking.save();
+                }
+                return res.status(400).json({ message: 'Cannot cancel: Flight destination time has completed' });
+            }
+            if (booking.bookingStatus !== 'confirmed') return res.status(400).json({ message: 'Booking is already cancelled or completed' });
             booking.bookingStatus = 'cancelled';
             await booking.save();
             res.json({message: "booking cancelled"});
 
         }catch(err){
             console.log(err);
+            res.status(500).json({ message: 'Server Error' });
         }
     })
 
-    app.put('/admin/bookings/:id', requireAdmin, async (req, res) => {
-        const { journeyDate, journeyTime, seatClass } = req.body;
-        if (!journeyDate || !journeyTime || !seatClass) {
-            return res.status(400).json({ message: 'Journey date, time, and seat class are required' });
+    const handleModifyBooking = async (req, res) => {
+        const { journeyDate, seatClass, flightId: selectedFlightId, journeyTime } = req.body;
+        if (!journeyDate || !seatClass) {
+            return res.status(400).json({ message: 'Journey date and seat class are required' });
+        }
+        const allowedClasses = ['economy', 'premium-economy', 'business', 'first-class'];
+        if (!allowedClasses.includes(seatClass)) {
+            return res.status(400).json({ message: 'Invalid seat class' });
         }
         try {
-            const booking = await Booking.findById(req.params.id);
+            const booking = await Booking.findById(req.params.id).populate('flight');
             if (!booking) return res.status(404).json({ message: 'Booking not found' });
-            if (booking.bookingStatus !== 'confirmed') return res.status(400).json({ message: 'Only confirmed bookings can be modified' });
-            const journey = new Date(journeyDate);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            if (Number.isNaN(journey.getTime()) || journey < today) return res.status(400).json({ message: 'Journey date must be today or later' });
-            const nextDay = new Date(journey);
-            nextDay.setDate(nextDay.getDate() + 1);
-            const otherBookings = await Booking.find({ _id: { $ne: booking._id }, flight: booking.flight, journeyDate: { $gte: journey, $lt: nextDay }, bookingStatus: { $nin: ['cancelled', 'completed'] } }).select('passengers');
-            const flight = await Flight.findById(booking.flight);
+            
+            // Allow admin or ticket owner
+            if (req.user.usertype !== 'admin' && booking.user.toString() !== req.user._id.toString()) {
+                return res.status(403).json({ message: 'Access denied' });
+            }
+
+            const arrivalDate = getBookingArrivalDateTime(booking, booking.flight);
+            if ((arrivalDate && new Date() >= arrivalDate) || booking.bookingStatus === 'completed') {
+                if (booking.bookingStatus !== 'completed') {
+                    booking.bookingStatus = 'completed';
+                    await booking.save();
+                }
+                return res.status(400).json({ message: 'Cannot modify: Flight destination time has completed' });
+            }
+            if (booking.bookingStatus !== 'confirmed') {
+                return res.status(400).json({ message: 'Only confirmed bookings can be modified' });
+            }
+
+            // Target flight: resolve safely by ObjectId or flightId code
+            let targetFlight = null;
+            if (selectedFlightId) {
+                if (mongoose.Types.ObjectId.isValid(selectedFlightId)) {
+                    targetFlight = await Flight.findById(selectedFlightId);
+                }
+                if (!targetFlight) {
+                    targetFlight = await Flight.findOne({ flightId: selectedFlightId });
+                }
+            }
+            if (!targetFlight) {
+                if (booking.flight && booking.flight._id) {
+                    targetFlight = booking.flight;
+                } else if (booking.flight && mongoose.Types.ObjectId.isValid(booking.flight)) {
+                    targetFlight = await Flight.findById(booking.flight);
+                }
+            }
+            if (!targetFlight && booking.flightId) {
+                targetFlight = await Flight.findOne({ flightId: booking.flightId });
+            }
+            if (!targetFlight) return res.status(404).json({ message: 'Associated flight not found' });
+
+            const [jYear, jMonth, jDay] = String(journeyDate).slice(0, 10).split('-').map(Number);
+            const scheduledDepartureTime = targetFlight.departureTime || journeyTime || booking.journeyTime || '00:00';
+            const [depH, depM] = scheduledDepartureTime.split(':').map(Number);
+            const newDepartureDateTime = new Date(jYear, jMonth - 1, jDay, depH || 0, depM || 0, 0, 0);
+
+            // Verify that departure date and time is in the future
+            if (newDepartureDateTime <= new Date()) {
+                return res.status(400).json({ message: 'Cannot modify to a flight/time that has already departed or is in the past' });
+            }
+
+            const journey = new Date(`${String(journeyDate).slice(0, 10)}T00:00:00.000Z`);
+            const startOfDay = new Date(`${String(journeyDate).slice(0, 10)}T00:00:00.000Z`);
+            const endOfDay = new Date(`${String(journeyDate).slice(0, 10)}T23:59:59.999Z`);
+
+            // Check seat availability on the target flight for the new date
+            const otherBookings = await Booking.find({
+                _id: { $ne: booking._id },
+                flight: targetFlight._id,
+                journeyDate: { $gte: startOfDay, $lte: endOfDay },
+                bookingStatus: { $nin: ['cancelled', 'completed'] }
+            }).select('passengers');
+
             const bookedSeats = otherBookings.reduce((total, item) => total + item.passengers.length, 0);
-            if (!flight || bookedSeats + booking.passengers.length > flight.totalSeats) return res.status(409).json({ message: 'Not enough seats available for the new date' });
+            const numPassengers = (booking.passengers && booking.passengers.length > 0) ? booking.passengers.length : 1;
+            const availableSeats = targetFlight.totalSeats - bookedSeats;
+
+            if (numPassengers > availableSeats) {
+                return res.status(409).json({
+                    message: `Not enough seats available on ${targetFlight.flightName} (${targetFlight.flightId}). Only ${availableSeats} seat(s) left on ${scheduledDepartureTime} for the selected date.`
+                });
+            }
+
+            // Recalculate seats and price
+            const seatCode = {'economy': 'E', 'premium-economy': 'P', 'business': 'B', 'first-class': 'A'};
+            const classMultipliers = {'economy': 1, 'premium-economy': 2, 'business': 3, 'first-class': 4};
+            const coach = seatCode[seatClass] || 'E';
+            const classMultiplier = classMultipliers[seatClass] || 1;
+
+            let seats = "";
+            for(let i = bookedSeats + 1; i <= bookedSeats + numPassengers; i++){
+                if(seats === ""){
+                    seats = `${coach}-${i}`;
+                } else {
+                    seats = `${seats}, ${coach}-${i}`;
+                }
+            }
+
+            booking.flight = targetFlight._id;
+            booking.flightName = targetFlight.flightName;
+            booking.flightId = targetFlight.flightId;
+            booking.departure = targetFlight.origin;
+            booking.destination = targetFlight.destination;
             booking.journeyDate = journey;
-            booking.journeyTime = journeyTime;
+            booking.journeyTime = scheduledDepartureTime;
             booking.seatClass = seatClass;
-            booking.totalPrice = flight.basePrice * booking.passengers.length;
+            booking.seats = seats;
+            booking.totalPrice = targetFlight.basePrice * classMultiplier * numPassengers;
+
             await booking.save();
             res.json(booking);
         } catch (error) {
-            res.status(500).json({ message: 'Server Error' });
+            console.error(error);
+            res.status(500).json({ message: error.message || 'Server Error' });
         }
-    });
+    };
+
+    app.put('/modify-booking/:id', requireUser, handleModifyBooking);
+    app.put('/admin/bookings/:id', requireUser, handleModifyBooking);
 
 
 

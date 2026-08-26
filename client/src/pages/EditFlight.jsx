@@ -28,58 +28,57 @@ const EditFlight = () => {
     }, [])
   
     const fetchFlightData = async () =>{
-      await axios.get(`http://localhost:6001/fetch-flight/${id}`).then(
-        (response) =>{
-          console.log(response.data);
-          setFlightName(response.data.flightName);
-          setFlightId(response.data.flightId);
-          setOrigin(response.data.origin);
-          setDestination(response.data.destination);
-          setTotalSeats(response.data.totalSeats);
-          setBasePrice(response.data.basePrice);
-          setScheduleDate(response.data.scheduleDate?.slice(0, 10) || '');
-  
-          const timeParts1 = response.data.departureTime.split(":");
-          const startT = new Date();
-          startT.setHours(parseInt(timeParts1[0], 10));
-          startT.setMinutes(parseInt(timeParts1[1], 10));
-          const hours1 = String(startT.getHours()).padStart(2, '0');
-          const minutes1 = String(startT.getMinutes()).padStart(2, '0');
-  
-          setStartTime(`${hours1}:${minutes1}`);
-  
-          const timeParts2 = response.data.arrivalTime.split(":");
-          const startD = new Date();
-          startD.setHours(parseInt(timeParts2[0], 10));
-          startD.setMinutes(parseInt(timeParts2[1], 10));
-          const hours2 = String(startD.getHours()).padStart(2, '0');
-          const minutes2 = String(startD.getMinutes()).padStart(2, '0');
-  
-          setArrivalTime(`${hours2}:${minutes2}`);
-  
-        }
-      )
+      try {
+        const response = await axios.get(`http://localhost:6001/fetch-flight/${id}`);
+        console.log(response.data);
+        setFlightName(response.data.flightName);
+        setFlightId(response.data.flightId);
+        setOrigin(response.data.origin);
+        setDestination(response.data.destination);
+        setTotalSeats(response.data.totalSeats);
+        setBasePrice(response.data.basePrice);
+        setScheduleDate(response.data.scheduleDate?.slice(0, 10) || '');
+
+        const timeParts1 = response.data.departureTime.split(":");
+        const startT = new Date();
+        startT.setHours(parseInt(timeParts1[0], 10));
+        startT.setMinutes(parseInt(timeParts1[1], 10));
+        const hours1 = String(startT.getHours()).padStart(2, '0');
+        const minutes1 = String(startT.getMinutes()).padStart(2, '0');
+
+        setStartTime(`${hours1}:${minutes1}`);
+
+        const timeParts2 = response.data.arrivalTime.split(":");
+        const startD = new Date();
+        startD.setHours(parseInt(timeParts2[0], 10));
+        startD.setMinutes(parseInt(timeParts2[1], 10));
+        const hours2 = String(startD.getHours()).padStart(2, '0');
+        const minutes2 = String(startD.getMinutes()).padStart(2, '0');
+
+        setArrivalTime(`${hours2}:${minutes2}`);
+      } catch (error) {
+        notify(error.response?.data?.message || 'Unable to fetch flight data', 'error');
+      }
     }
-  
+
     const handleSubmit = async () =>{
-  
       const inputs = {_id: id,flightName, flightId, origin, destination, 
         departureTime: startTime, arrivalTime, scheduleDate, basePrice, totalSeats};
-  
-      await axios.put('http://localhost:6001/update-flight', inputs).then(
-        async (response)=>{
-          notify('Flight updated successfully', 'success');
-          setFlightName('');
-          setFlightId('');
-          setOrigin('');
-          setStartTime('');
-          setArrivalTime('');
-          setDestination('');
-          setBasePrice(0);
-          setTotalSeats(0);
-        }
-      )
-  
+
+      try {
+        await axios.put('http://localhost:6001/update-flight', inputs);
+        notify('Flight updated successfully', 'success');
+        setFlightName('');
+        setFlightId('');
+        setOrigin('');
+        setStartTime('');
+        setArrivalTime('');
+        setDestination('');
+        setBasePrice(0);
+        setTotalSeats(0);
+      } catch (error) {
+        notify(error.response?.data?.message || 'Unable to update flight', 'error');
+      }
     }
   
     return (

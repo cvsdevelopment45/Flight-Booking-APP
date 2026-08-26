@@ -41,25 +41,24 @@ const NewFlight = () => {
     const [basePrice, setBasePrice] = useState(0);
   
     const handleSubmit = async () =>{
-  
       const inputs = {flightName, flightId, origin, destination, 
                         departureTime: startTime, arrivalTime, scheduleDate, basePrice, totalSeats};
   
-      await axios.post('http://localhost:6001/add-flight', inputs).then(
-        async (response)=>{
-          notify('Flight added successfully', 'success');
-          setFlightName('');
-          setFlightId('');
-          setOrigin('');
-          setStartTime('');
-          setArrivalTime('');
-          setScheduleDate('');
-          setDestination('');
-          setBasePrice(0);
-          setTotalSeats(0);
-        }
-      )
-  
+      try {
+        await axios.post('http://localhost:6001/add-flight', inputs);
+        notify('Flight added successfully', 'success');
+        setFlightName('');
+        setFlightId('');
+        setOrigin('');
+        setStartTime('');
+        setArrivalTime('');
+        setScheduleDate('');
+        setDestination('');
+        setBasePrice(0);
+        setTotalSeats(0);
+      } catch (error) {
+        notify(error.response?.data?.message || 'Unable to add flight', 'error');
+      }
     }
   
     

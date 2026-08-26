@@ -78,24 +78,47 @@ const LandingPage = () => {
   }
 
 
-    const handleTicketBooking = async (id, origin, destination) =>{
-      if(userId){
+  const getTodayLocalDateStr = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
-          if(origin === departure){
-            setTicketBookingDate(departureDate);
-            navigate(`/book-flight/${id}`);
-          } else if(destination === departure){
-            setTicketBookingDate(returnDate);
-            navigate(`/book-flight/${id}`);
-          }
-      }else{
-        navigate('/auth');
-      }
+  const isFlightInFuture = (flight, selectedDateStr) => {
+    if (!selectedDateStr) return true;
+    const [year, month, day] = String(selectedDateStr).split('-').map(Number);
+    if (!year || !month || !day) return true;
+    const depTime = flight.departureTime || '00:00';
+    const [hours, minutes] = depTime.split(':').map(Number);
+    const flightDepartureDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
+    return flightDepartureDateTime > new Date();
+  };
+
+  const handleTicketBooking = async (id, origin, destination) =>{
+    if(userId){
+        if(origin === departure){
+          setTicketBookingDate(departureDate);
+          navigate(`/book-flight/${id}`);
+        } else if(destination === departure){
+          setTicketBookingDate(returnDate);
+          navigate(`/book-flight/${id}`);
+        }
+    }else{
+      navigate('/auth');
     }
+  }
 
-    const matchingFlights = checkBox
-      ? Flights.filter((flight) => (flight.origin === departure && flight.destination === destination) || (flight.origin === destination && flight.destination === departure))
-      : Flights.filter((flight) => flight.origin === departure && flight.destination === destination);
+  const matchingFlights = checkBox
+    ? Flights.filter((flight) => {
+        const isOutbound = flight.origin === departure && flight.destination === destination;
+        const isReturn = flight.origin === destination && flight.destination === departure;
+        if (isOutbound) return isFlightInFuture(flight, departureDate);
+        if (isReturn) return isFlightInFuture(flight, returnDate);
+        return false;
+      })
+    : Flights.filter((flight) => flight.origin === departure && flight.destination === destination && isFlightInFuture(flight, departureDate));
 
 
 
@@ -157,13 +180,13 @@ const LandingPage = () => {
                       <label htmlFor="floatingSelect">Destination City</label>
                     </div>
                     <div className="form-floating mb-3">
-                      <input type="date" className="form-control" id="floatingInputstartDate" value={departureDate} min={new Date().toISOString().slice(0, 10)} onChange={(e)=>setDepartureDate(e.target.value)}/>
+                      <input type="date" className="form-control" id="floatingInputstartDate" value={departureDate} min={getTodayLocalDateStr()} onChange={(e)=>setDepartureDate(e.target.value)}/>
                       <label htmlFor="floatingInputstartDate">Journey date</label>
                     </div>
                     {checkBox ?
                     
                       <div className="form-floating mb-3">
-                        <input type="date" className="form-control" id="floatingInputreturnDate" value={returnDate} min={departureDate || new Date().toISOString().slice(0, 10)} onChange={(e)=>setReturnDate(e.target.value)}/>
+                        <input type="date" className="form-control" id="floatingInputreturnDate" value={returnDate} min={departureDate || getTodayLocalDateStr()} onChange={(e)=>setReturnDate(e.target.value)}/>
                         <label htmlFor="floatingInputreturnDate">Return date</label>
                       </div>
                     

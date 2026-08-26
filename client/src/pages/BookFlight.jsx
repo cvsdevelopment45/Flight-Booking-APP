@@ -71,8 +71,28 @@ const BookFlight = () => {
     const navigate = useNavigate();
   
   
+    const getTodayLocalDateStr = () => {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const isFlightInPast = () => {
+      if (!journeyDate || !startTime) return false;
+      const [year, month, day] = String(journeyDate).split('-').map(Number);
+      if (!year || !month || !day) return false;
+      const [hours, minutes] = String(startTime).split(':').map(Number);
+      const flightDepDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0, 0);
+      return flightDepDateTime <= new Date();
+    };
+
     const bookFlight = async ()=>{
-  
+      if (isFlightInPast()) {
+        return notify('Cannot book flight: The selected departure date and time has already passed.', 'error');
+      }
+
       const inputs = {user: localStorage.getItem('userId'), flight: id, flightName, 
                                                   flightId, departure: StartCity, journeyTime: startTime, destination: destinationCity, 
                                                   email, mobile, passengers: passengerDetails, totalPrice, 
@@ -123,7 +143,7 @@ const BookFlight = () => {
             </div>
           </div>
           <div className="form-floating mb-3">
-                  <input type="date" className="form-control" id="floatingInputreturnDate" value={journeyDate} onChange={(e)=>setJourneyDate(e.target.value)} />
+                  <input type="date" className="form-control" id="floatingInputreturnDate" value={journeyDate} min={getTodayLocalDateStr()} onChange={(e)=>setJourneyDate(e.target.value)} />
                   <label htmlFor="floatingInputreturnDate">Journey date</label>
           </div>
           <div className="form-floating">
