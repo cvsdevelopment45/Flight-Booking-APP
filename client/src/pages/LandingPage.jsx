@@ -38,7 +38,7 @@ const LandingPage = () => {
         const date2 = new Date(returnDate);
         if(date1 > date && date2 > date1){
           setError("");
-          await axios.get('http://localhost:6001/fetch-flights').then(
+          await axios.get('http://localhost:6001/fetch-flights', { params: { origin: departure, destination, scheduleDate: departureDate } }).then(
               (response)=>{
                 setFlights(response.data);
                 console.log(response.data)
@@ -52,7 +52,7 @@ const LandingPage = () => {
         const date1 = new Date(departureDate);
         if(date1 >= date){
           setError("");
-          await axios.get('http://localhost:6001/fetch-flights').then(
+          await axios.get('http://localhost:6001/fetch-flights', { params: { origin: departure, destination, scheduleDate: departureDate } }).then(
               (response)=>{
                 setFlights(response.data);
                 console.log(response.data)
@@ -194,7 +194,7 @@ const LandingPage = () => {
                             </div>
                             <div>
                                 <p ><b>Starting Price:</b> {Flight.basePrice}</p>
-                                <p ><b>Available Seats:</b> {Flight.totalSeats}</p>
+                                <p ><b>Available Seats:</b> {Flight.availableSeats ?? Flight.totalSeats}</p>
                             </div>
                             <button className="button btn btn-primary" onClick={()=>handleTicketBooking(Flight._id, Flight.origin, Flight.destination)}>Book Now</button>
                         </div>
@@ -221,7 +221,7 @@ const LandingPage = () => {
                             </div>
                             <div>
                                 <p ><b>Starting Price:</b> {Flight.basePrice}</p>
-                                <p ><b>Available Seats:</b> {Flight.totalSeats}</p>
+                                <p ><b>Available Seats:</b> {Flight.availableSeats ?? Flight.totalSeats}</p>
                             </div>
                             <button className="button btn btn-primary" onClick={()=>handleTicketBooking(Flight._id, Flight.origin, Flight.destination)}>Book Now</button>
                         </div>

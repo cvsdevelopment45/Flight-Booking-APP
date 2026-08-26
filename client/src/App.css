@@ -188,6 +188,11 @@
 .profile-email { margin: 0 0 20px; color: rgba(255,255,255,0.78); overflow-wrap: anywhere; }
 .profile-role { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.16); text-transform: capitalize; font-size: 0.78rem; }
 .profile-password-form { width: 100%; }
+.profile-otp-button { margin-top: 24px; color: var(--blue-dark); font-weight: 700; }
+.profile-otp-setup { display: grid; gap: 10px; margin-top: 18px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.2); }
+.profile-otp-setup img { width: 150px; padding: 8px; background: white; border-radius: 8px; }
+.profile-otp-setup input { width: 150px; padding: 9px; border: 0; border-radius: 6px; text-align: center; letter-spacing: 0.16em; }
+.profile-otp-setup .btn { width: fit-content; color: var(--blue-dark); font-weight: 700; }
 
 @media (max-width: 720px) {
   .profile-page { grid-template-columns: 1fr; padding-top: 100px; }

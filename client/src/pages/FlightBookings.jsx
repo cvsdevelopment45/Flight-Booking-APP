@@ -1,5 +1,6 @@
 import axios from 'axios';
 import React, { useEffect, useState } from 'react'
+import { notify } from '../utils/notify';
 
 const FlightBookings = () => {
   const [userDetails, setUserDetails] = useState();
@@ -42,7 +43,7 @@ const FlightBookings = () => {
   const cancelTicket = async (id) =>{
     await axios.put(`http://localhost:6001/cancel-ticket/${id}`).then(
       (response)=>{
-        alert("Ticket cancelled!!");
+        notify("Ticket cancelled!!", 'success');
         fetchBookings();
       }
     )

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import '../styles/NewFlight.css'
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
+import { notify } from '../utils/notify';
 
 const EditFlight = () => {
     const [flightName, setFlightName] = useState('');
@@ -10,6 +11,7 @@ const EditFlight = () => {
     const [destination, setDestination] = useState('');
     const [startTime, setStartTime] = useState();
     const [arrivalTime, setArrivalTime] = useState();
+    const [scheduleDate, setScheduleDate] = useState('');
     const [totalSeats, setTotalSeats] = useState(0);
     const [basePrice, setBasePrice] = useState(0);
   
@@ -35,6 +37,7 @@ const EditFlight = () => {
           setDestination(response.data.destination);
           setTotalSeats(response.data.totalSeats);
           setBasePrice(response.data.basePrice);
+          setScheduleDate(response.data.scheduleDate?.slice(0, 10) || '');
   
           const timeParts1 = response.data.departureTime.split(":");
           const startT = new Date();
@@ -61,11 +64,11 @@ const EditFlight = () => {
     const handleSubmit = async () =>{
   
       const inputs = {_id: id,flightName, flightId, origin, destination, 
-        departureTime: startTime, arrivalTime, basePrice, totalSeats};
+        departureTime: startTime, arrivalTime, scheduleDate, basePrice, totalSeats};
   
-      await axios.put('http://localhost:6001/update-flight', inputs, { headers: { 'x-user-id': localStorage.getItem('userId') } }).then(
+      await axios.put('http://localhost:6001/update-flight', inputs).then(
         async (response)=>{
-          alert('Flight updated successfully!!');
+          notify('Flight updated successfully', 'success');
           setFlightName('');
           setFlightId('');
           setOrigin('');
@@ -94,6 +97,10 @@ const EditFlight = () => {
             <div className="form-floating mb-3">
                   <input type="text" className="form-control" id="floatingInputmobile" value={flightId} onChange={(e)=> setFlightId(e.target.value)} />
                   <label htmlFor="floatingInputmobile">Flight Id</label>
+            </div>
+            <div className="form-floating mb-3">
+              <input type="date" className="form-control" id="editScheduleDate" value={scheduleDate} onChange={(e)=> setScheduleDate(e.target.value)} />
+              <label htmlFor="editScheduleDate">Flight date</label>
             </div>
         </span>
         <span>

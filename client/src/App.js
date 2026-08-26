@@ -19,11 +19,13 @@ import FlightBookings from './pages/FlightBookings.jsx';
 import Flights from './pages/Flights.jsx';
 import ChangePassword from './pages/ChangePassword';
 import Profile from './pages/Profile';
+import NotificationCenter from './components/NotificationCenter';
 
 function App() {
   return (
     <div className="App">
       <Navbar />
+      <NotificationCenter />
 
       <Routes>
         <Route exact path = '' element={<LandingPage />} />

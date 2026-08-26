@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import '../styles/NewFlight.css'
 import axios from 'axios';
+import { notify } from '../utils/notify';
 
 const NewFlight = () => {
 
@@ -35,22 +36,24 @@ const NewFlight = () => {
     const [destination, setDestination] = useState('');
     const [startTime, setStartTime] = useState('');
     const [arrivalTime, setArrivalTime] = useState('');
+    const [scheduleDate, setScheduleDate] = useState('');
     const [totalSeats, setTotalSeats] = useState(0);
     const [basePrice, setBasePrice] = useState(0);
   
     const handleSubmit = async () =>{
   
       const inputs = {flightName, flightId, origin, destination, 
-                        departureTime: startTime, arrivalTime, basePrice, totalSeats};
+                        departureTime: startTime, arrivalTime, scheduleDate, basePrice, totalSeats};
   
-      await axios.post('http://localhost:6001/add-Flight', inputs).then(
+      await axios.post('http://localhost:6001/add-flight', inputs).then(
         async (response)=>{
-          alert('Flight added successfully!!');
+          notify('Flight added successfully', 'success');
           setFlightName('');
           setFlightId('');
           setOrigin('');
           setStartTime('');
           setArrivalTime('');
+          setScheduleDate('');
           setDestination('');
           setBasePrice(0);
           setTotalSeats(0);
@@ -115,6 +118,10 @@ const NewFlight = () => {
                           <label htmlFor="floatingInputmobile">Departure Time</label>
                     </div>
                 </span>
+                <div className="form-floating mb-3">
+                  <input type="date" className="form-control" id="scheduleDate" value={scheduleDate} onChange={(e)=> setScheduleDate(e.target.value)} required />
+                  <label htmlFor="scheduleDate">Flight date</label>
+                </div>
                 <span>
                     <div className="form-floating">
                       <select className="form-select form-select-sm mb-3" aria-label=".form-select-sm example" value={destination} onChange={(e)=> setDestination(e.target.value)} >

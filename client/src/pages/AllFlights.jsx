@@ -2,12 +2,13 @@ import axios from 'axios';
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import '../styles/AllFlights.css';
+import { notify } from '../utils/notify';
 
 const AllFlights = () => {
     const [flights, setFlights] = useState([]);
     const navigate = useNavigate();
     const isAdmin = localStorage.getItem('userType') === 'admin';
-    const [newFlight, setNewFlight] = useState({ flightName: '', flightId: '', origin: '', destination: '', departureTime: '', arrivalTime: '', basePrice: '', totalSeats: '' });
+    const [newFlight, setNewFlight] = useState({ flightName: '', flightId: '', origin: '', destination: '', departureTime: '', arrivalTime: '', scheduleDate: '', basePrice: '', totalSeats: '' });
   
     
     const fetchFlights = async () =>{
@@ -23,21 +24,21 @@ const AllFlights = () => {
 
     const addFlight = async () => {
       try {
-        await axios.post('http://localhost:6001/admin/flights', newFlight, { headers: { 'x-user-id': localStorage.getItem('userId') } });
-        setNewFlight({ flightName: '', flightId: '', origin: '', destination: '', departureTime: '', arrivalTime: '', basePrice: '', totalSeats: '' });
+        await axios.post('http://localhost:6001/admin/flights', newFlight);
+        setNewFlight({ flightName: '', flightId: '', origin: '', destination: '', departureTime: '', arrivalTime: '', scheduleDate: '', basePrice: '', totalSeats: '' });
         fetchFlights();
       } catch (error) {
-        alert(error.response?.data?.message || 'Unable to add flight');
+        notify(error.response?.data?.message || 'Unable to add flight', 'error');
       }
     };
 
     const deleteFlight = async (id) => {
       if (!window.confirm('Delete this flight and its bookings?')) return;
       try {
-        await axios.delete(`http://localhost:6001/admin/flights/${id}`, { headers: { 'x-user-id': localStorage.getItem('userId') } });
+        await axios.delete(`http://localhost:6001/admin/flights/${id}`);
         fetchFlights();
       } catch (error) {
-        alert(error.response?.data?.message || 'Unable to delete flight');
+        notify(error.response?.data?.message || 'Unable to delete flight', 'error');
       }
     };
       
@@ -49,7 +50,7 @@ const AllFlights = () => {
       <div className="allFlightsPage">
         <h1>All Flights</h1>
         {isAdmin && <div className="admin-add-form flight-add-form">
-          {['flightName', 'flightId', 'origin', 'destination', 'departureTime', 'arrivalTime', 'basePrice', 'totalSeats'].map((field) => (
+          {['flightName', 'flightId', 'origin', 'destination', 'departureTime', 'arrivalTime', 'scheduleDate', 'basePrice', 'totalSeats'].map((field) => (
             <input key={field} type={field.includes('Time') ? 'time' : ['basePrice', 'totalSeats'].includes(field) ? 'number' : 'text'} placeholder={field} value={newFlight[field]} onChange={(e) => updateNewFlight(field, e.target.value)} />
           ))}
           <button className="btn btn-primary" onClick={addFlight}>Add flight</button>

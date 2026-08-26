@@ -2,6 +2,7 @@ import axios from 'axios';
 import React, { useEffect, useState } from 'react'
 import '../styles/Bookings.css';
 import BookingTable from '../components/BookingTable';
+import { notify } from '../utils/notify';
 
 const AllBookings = () => {
 
@@ -22,7 +23,7 @@ const AllBookings = () => {
   const cancelTicket = async (id) =>{
     await axios.put(`http://localhost:6001/cancel-ticket/${id}`).then(
       (response)=>{
-        alert("Ticket cancelled!!");
+        notify("Ticket cancelled!!", 'success');
         fetchBookings();
       }
     )
@@ -30,10 +31,10 @@ const AllBookings = () => {
 
   const modifyBooking = async (id, values) => {
     try {
-      await axios.put(`http://localhost:6001/admin/bookings/${id}`, values, { headers: { 'x-user-id': localStorage.getItem('userId') } });
+      await axios.put(`http://localhost:6001/admin/bookings/${id}`, values);
       fetchBookings();
     } catch (error) {
-      alert(error.response?.data?.message || 'Unable to modify booking');
+      notify(error.response?.data?.message || 'Unable to modify booking', 'error');
     }
   }
 

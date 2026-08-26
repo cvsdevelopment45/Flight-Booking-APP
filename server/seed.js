@@ -1,7 +1,9 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
 import mongoose from 'mongoose';
 import { Flight, User } from './schemas.js';
+
+dotenv.config({ path: new URL('./.env', import.meta.url) });
 
 const demoPassword = 'password123';
 
@@ -48,15 +50,15 @@ async function seed() {
     for (const user of users) {
         await User.updateOne(
             { email: user.email },
-            { $set: { ...user, password: hashedPassword } },
+            { $set: { username: user.username, email: user.email, usertype: user.usertype, approval: user.approval, password: hashedPassword } },
             { upsert: true }
         );
     }
 
     await Flight.deleteMany({ flightId: { $in: ['SK101', 'CA202', 'SS303'] } });
 
-    for (const flight of flights) {
-        await Flight.updateOne({ flightId: flight.flightId }, { $set: flight }, { upsert: true });
+    for (const [index, flight] of flights.entries()) {
+        await Flight.updateOne({ flightId: flight.flightId }, { $set: { ...flight, scheduleDate: new Date(Date.now() + ((index % 30) + 1) * 86400000) } }, { upsert: true });
     }
 
     console.log(`Seeded ${users.length} users and ${flights.length} flights.`);

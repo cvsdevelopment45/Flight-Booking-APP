@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import '../styles/Authenticate.css';
+import { notify } from '../utils/notify';
 
 const Profile = () => {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -12,29 +13,30 @@ const Profile = () => {
 
   const changePassword = async (event) => {
     event.preventDefault();
-    if (newPassword !== confirmation) return alert('New passwords do not match');
+    if (newPassword !== confirmation) return notify('New passwords do not match', 'error');
     try {
-      await axios.put('http://localhost:6001/change-password', { currentPassword, newPassword }, { headers: { 'x-user-id': localStorage.getItem('userId') } });
-      alert('Password changed successfully');
+      await axios.put('http://localhost:6001/change-password', { currentPassword, newPassword });
+      notify('Password changed successfully', 'success');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmation('');
     } catch (error) {
-      alert(error.response?.data?.message || 'Unable to change password');
+      notify(error.response?.data?.message || 'Unable to change password', 'error');
     }
   };
 
   const updateName = async (event) => {
     event.preventDefault();
     try {
-      const response = await axios.put('http://localhost:6001/profile', { username }, { headers: { 'x-user-id': localStorage.getItem('userId') } });
+      const response = await axios.put('http://localhost:6001/profile', { username });
       localStorage.setItem('username', response.data.username);
       setUsername(response.data.username);
-      alert('Name updated successfully');
+      notify('Name updated successfully', 'success');
     } catch (error) {
-      alert(error.response?.data?.message || 'Unable to update name');
+      notify(error.response?.data?.message || 'Unable to update name', 'error');
     }
   };
+
 
   return <div className="profile-page">
     <section className="profile-card">

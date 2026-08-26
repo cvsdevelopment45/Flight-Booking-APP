@@ -64,7 +64,7 @@
     padding: 0 !important;
 }
 
-.authForm button{
+.authForm button.btn{
     background-color: var(--blue-dark);
     font-weight: bold;
     color: rgb(246, 251, 255);
@@ -78,4 +78,54 @@
     margin-top: 5%;
     color: rgb(0, 68, 107);
     cursor: pointer;
+}
+
+.text-button {
+    border: 0 !important;
+    height: auto !important;
+    margin: 8px auto 0;
+    padding: 4px 8px !important;
+    color: var(--blue);
+    background: transparent !important;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.text-button:hover {
+    color: var(--blue-dark);
+    text-decoration: underline;
+}
+
+.form-helper {
+    margin: 0 0 20px !important;
+    font-size: 0.88rem;
+    color: var(--muted) !important;
+}
+
+.app-notification {
+    position: fixed;
+    top: 92px;
+    right: 24px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    max-width: min(380px, calc(100vw - 32px));
+    padding: 15px 16px;
+    border: 1px solid rgba(255,255,255,0.7);
+    border-radius: 10px;
+    color: white;
+    background: #0b3d62;
+    box-shadow: 0 14px 35px rgba(16,42,67,0.25);
+    animation: notification-in 180ms ease-out;
+}
+
+.app-notification.error { background: #a33b3b; }
+.app-notification.success { background: #176b5b; }
+.app-notification button { border: 0; color: white; background: transparent; cursor: pointer; font-size: 1rem; }
+
+@keyframes notification-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
 }

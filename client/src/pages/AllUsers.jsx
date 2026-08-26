@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Navbar from '../components/Navbar'
 import '../styles/allUsers.css'
 import axios from 'axios';
+import { notify } from '../utils/notify';
 
 const AllUsers = () => {
 
@@ -35,31 +36,31 @@ const AllUsers = () => {
       await axios.put(`http://localhost:6001/update-user/${id}`, {
         username: editName,
         email: editEmail
-      }, { headers: { 'x-user-id': localStorage.getItem('userId') } });
+      });
       setEditingId(null);
       fetchUsers();
     } catch (error) {
-      alert(error.response?.data?.message || 'Unable to update user');
+      notify(error.response?.data?.message || 'Unable to update user', 'error');
     }
   };
 
   const addUser = async () => {
     try {
-      await axios.post('http://localhost:6001/admin/users', newUser, { headers: { 'x-user-id': localStorage.getItem('userId') } });
+      await axios.post('http://localhost:6001/admin/users', newUser);
       setNewUser({ username: '', email: '', usertype: 'customer', password: '' });
       fetchUsers();
     } catch (error) {
-      alert(error.response?.data?.message || 'Unable to add user');
+      notify(error.response?.data?.message || 'Unable to add user', 'error');
     }
   };
 
   const deleteUser = async (id) => {
     if (!window.confirm('Delete this user and their bookings?')) return;
     try {
-      await axios.delete(`http://localhost:6001/admin/users/${id}`, { headers: { 'x-user-id': localStorage.getItem('userId') } });
+      await axios.delete(`http://localhost:6001/admin/users/${id}`);
       fetchUsers();
     } catch (error) {
-      alert(error.response?.data?.message || 'Unable to delete user');
+      notify(error.response?.data?.message || 'Unable to delete user', 'error');
     }
   };
 

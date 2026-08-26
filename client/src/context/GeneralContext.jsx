@@ -1,6 +1,7 @@
-import React, { createContext, useState } from 'react';
+import React, { createContext, useEffect, useState } from 'react';
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { notify } from '../utils/notify';
 
 export const GeneralContext = createContext();
 
@@ -18,9 +19,14 @@ const GeneralContextProvider = ({children}) => {
 
   const navigate = useNavigate();
 
-  const login = async () =>{
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+  }, []);
+
+  const login = async (otp = '') =>{
     try{
-      const loginInputs = {email, password}
+      const loginInputs = {email, password, otp}
         await axios.post('http://localhost:6001/login', loginInputs)
         .then( async (res)=>{
 
@@ -28,17 +34,20 @@ const GeneralContextProvider = ({children}) => {
             localStorage.setItem('userType', res.data.usertype);
             localStorage.setItem('username', res.data.username);
             localStorage.setItem('email', res.data.email);
+            localStorage.setItem('token', res.data.token);
+            axios.defaults.headers.common.Authorization = `Bearer ${res.data.token}`;
 
             if(res.data.usertype === 'customer'){
                 navigate('/');
             } else if(res.data.usertype === 'admin'){
                 navigate('/admin');
             } else if(res.data.usertype === 'flight-operator'){
-              navigate('/flight-admin');
+              notify('Your operator account is awaiting admin approval.', 'info');
+              navigate('/');
             }
-        }).catch((err) =>{
-            alert("login failed!!");
-            console.log(err);
+        }).catch((err) => {
+          notify(err.response?.data?.message || "Incorrect email or password", 'error');
+          return false;
         });
 
     }catch(err){
@@ -54,6 +63,8 @@ const GeneralContextProvider = ({children}) => {
             localStorage.setItem('userType', res.data.usertype);
             localStorage.setItem('username', res.data.username);
             localStorage.setItem('email', res.data.email);
+            localStorage.setItem('token', res.data.token);
+            axios.defaults.headers.common.Authorization = `Bearer ${res.data.token}`;
 
             if(res.data.usertype === 'customer'){
                 navigate('/');
@@ -64,7 +75,7 @@ const GeneralContextProvider = ({children}) => {
             }
 
         }).catch((err) =>{
-            alert("registration failed!!");
+            notify(err.response?.data?.message || "Registration failed", 'error');
             console.log(err);
         });
     }catch(err){
@@ -77,6 +88,7 @@ const GeneralContextProvider = ({children}) => {
   const logout = async () =>{
     
     localStorage.clear();
+    delete axios.defaults.headers.common.Authorization;
     for (let key in localStorage) {
       if (localStorage.hasOwnProperty(key)) {
         localStorage.removeItem(key);

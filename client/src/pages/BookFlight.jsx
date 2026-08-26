@@ -3,6 +3,7 @@ import '../styles/BookFlight.css'
 import { GeneralContext } from '../context/GeneralContext';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
+import { notify } from '../utils/notify';
 
 const BookFlight = () => {
     const {id} = useParams();
@@ -79,11 +80,11 @@ const BookFlight = () => {
       
       await axios.post('http://localhost:6001/book-ticket', inputs).then(
         (response)=>{
-          alert("booking successful");
+          notify("Booking successful", 'success');
           navigate('/bookings');
         }
       ).catch((err)=>{
-        alert("Booking failed!!")
+        notify(err.response?.data?.message || "Booking failed", 'error')
       })
     }
   

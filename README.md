@@ -1,61 +1,96 @@
-# Flight-Booking-APP--MERN-Stack
-Category: Fullstack Development - MERN
+# Flight Booking App
 
-**Skills Required:**
-- HTML
-- CSS
-- React.js
-- Node.js
-- Express.js
-- MongoDB
+A MERN flight-booking application with customer, flight-operator, and administrator workflows.
 
-**Project Overview:**
+## Features
 
-- The **Flight Booking App** is a web platform that simplifies the process of booking flights. Users can search for flights, make bookings, and process payments with ease. Admins can manage bookings, add new flights, and monitor user activity. The app is built using the MERN stack (MongoDB, Express.js, React.js, Node.js).
- 
-- This project is a Naan Mudhalvan team initiative aimed at creating an efficient, user-friendly digital platform for flight booking.
-  ![Screenshot 2024-11-22 213404](https://github.com/user-attachments/assets/c7c0d58e-230f-4cff-a9aa-c4ceacdf09cc)
+- Search flights by origin and destination.
+- Book passengers with seat class, journey date, and server-calculated pricing.
+- View and cancel customer bookings.
+- Admin tables for users, operators, bookings, and flights.
+- Admin-only add, edit, delete, and booking-modification controls.
+- Approved operators can add and manage flights.
+- Profile page with name update and authenticated password change.
+- Password recovery through Brevo email OTP. OTPs expire after 10 minutes and are stored only as hashes.
+- Responsive tables and in-app notifications without browser alert popups.
 
-**Key Features:**
-- User-Friendly Interface: Easily search for flights based on destination, time, and seat availability.
-- Admin Controls: Admin can manage flight listings, bookings, and monitor activity.
+## Stack
 
-**ER Diagram Breakdown:**
--  The Flight Booking ER-Diagram illustrates the relationships between the following entities:
- 
-   - **USER:** Represents customers who book flights. A customer can place multiple bookings.
-   - **BOOKING:** Represents a specific flight booking, including flight details and passenger information. A customer can have multiple bookings.
-   - **FLIGHT:** Represents available flights, including flight details. Users can book flights based on seat availability.
-   - **ADMIN:** The admin manages the backend operations, including overseeing bookings, adding new flights, etc.
+- React and React Router
+- Node.js and Express
+- MongoDB Atlas and Mongoose
+- Axios and Nodemailer
 
-**Project Structure:**
-- **Client Directory (Frontend):**
-  -   Built with **React.js** for dynamic UI, containing:
-       -         src/:        # React components and logic.
-       -         public/:        # Static files like images and HTML.
-       -         package.json:        # Manages dependencies and scripts.
-    
-- **Server Directory (Backend):**
-    - Built with **Node.js** and **Express.js** for the backend, containing:
-      -          models/:        # Database models for flights, users, bookings.
-      -          routes/:        # API routes for handling requests.
-      -          controllers/:        # Logic for handling API requests.
-      -          server.js:        # Main server file.
-    
-**Application Flow:**
-- **User Flow:**
-  -   1.**Account Creation:** Users create an account to start booking.
-  -   2.**Search Flights:** Search for flights by destination, time, and seat preference.
-  -   3.**Book Flight:** Select a flight and seat, then complete the booking.
-  -   4.**Booking Management:** Option to cancel bookings.
-  
-- **Admin Flow:**
-  -   1.**Manage Bookings:** Admin can view, approve, or cancel bookings.
-  -   2.**Add New Flights:** Admin can add and update flight details.
-  -   3.**Monitor User Activity:** Admin can view user actions for efficient management.
-  
-**Project Flow:**
-  - 1.**Project Setup:** Initial configuration of frontend and backend.
-  - 2.**Backend Development:** Setting up database and server routes.
-  - 3.**Frontend Development**: Building the user interface with React.
-  - 4.**Implementation:** Combining backend and frontend to deploy the working app.
+## Setup
+
+```powershell
+cd client
+npm install
+cd ..\server
+npm install
+```
+
+Create `server/.env`:
+
+```env
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>/<database>?retryWrites=true&w=majority
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=<brevo-smtp-login>
+SMTP_PASSWORD=<brevo-smtp-key>
+SMTP_FROM=<verified-sender-email>
+JWT_SECRET=<long-random-secret>
+```
+
+The sender must be verified in Brevo. Use an SMTP key, not the Brevo account password. Never commit `server/.env`.
+
+## Seed Data
+
+```powershell
+cd server
+npm run seed
+```
+
+This creates demo users and 132 directed city routes. Demo accounts use `password123`:
+
+| Role | Email |
+| --- | --- |
+| Admin | `admin@example.com` |
+| Customer | `customer@example.com` |
+| Flight operator | `operator@example.com` |
+
+Change demo passwords before any non-local use.
+
+## Run Locally
+
+Start the API in one terminal:
+
+```powershell
+cd server
+npm start
+```
+
+API: `http://localhost:6001`
+
+Start the frontend in another terminal:
+
+```powershell
+cd client
+npm start
+```
+
+Frontend: `http://localhost:3000`
+
+## Security Notes
+
+- Admin actions require server-side admin authorization.
+- Booking identity, price, passenger input, and seat capacity are checked by the server.
+- Password reset requires a short-lived OTP sent to the registered email.
+- SMTP failures return JSON errors instead of crashing the API.
+
+## Known Limitations
+
+- Payment processing and refunds are not implemented.
+- The current session uses a client-stored user ID; production should use signed JWTs or secure HTTP-only sessions.
+- Flight schedules store route times but do not yet model date-specific inventory.

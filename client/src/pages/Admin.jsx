@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import '../styles/Admin.css'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { notify } from '../utils/notify';
 
 const Admin = () => {
 
@@ -42,9 +43,9 @@ const Admin = () => {
   const approveRequest = async (id) =>{
       try{
 
-          await axios.post('http://localhost:6001/approve-operator', {id}, { headers: { 'x-user-id': localStorage.getItem('userId') } }).then(
+          await axios.post('http://localhost:6001/approve-operator', {id}).then(
             (response)=>{
-              alert("Operator approved!!");
+              notify("Operator approved!!", 'success');
               fetchData();
             }
           )
@@ -57,9 +58,9 @@ const Admin = () => {
   const rejectRequest = async (id) =>{
     try{
 
-      await axios.post('http://localhost:6001/reject-operator', {id}, { headers: { 'x-user-id': localStorage.getItem('userId') } }).then(
+      await axios.post('http://localhost:6001/reject-operator', {id}).then(
         (response)=>{
-          alert("Operator rejected!!");
+          notify("Operator rejected!!", 'success');
           fetchData();
         }
       )

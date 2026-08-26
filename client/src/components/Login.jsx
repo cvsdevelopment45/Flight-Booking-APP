@@ -2,7 +2,7 @@
 import React, { useContext } from 'react'
 import { GeneralContext } from '../context/GeneralContext';
 
-const Login = ({setIsLogin}) => {
+const Login = ({setIsLogin, setIsForgotPassword}) => {
 
   const {setEmail, setPassword, login} = useContext(GeneralContext);
 
@@ -11,7 +11,7 @@ const Login = ({setIsLogin}) => {
     await login();
   }
   return (
-    <form className="authForm">
+    <form className="authForm" onSubmit={handleLogin}>
         <h2>Login</h2>
         <div className="form-floating mb-3 authFormInputs">
             <input type="email" className="form-control" id="floatingInput" placeholder="name@example.com" 
@@ -23,8 +23,9 @@ const Login = ({setIsLogin}) => {
                                                                   onChange={(e) => setPassword(e.target.value)} /> 
             <label htmlFor="floatingPassword">Password</label>
         </div>
-        <button type="submit" className="btn btn-primary" onClick={handleLogin}>Sign in</button>
+        <button type="submit" className="btn btn-primary">Sign in</button>
 
+        <button type="button" className="text-button" onClick={() => setIsForgotPassword(true)}>Forgot password?</button>
         <p>Not registered? <span onClick={()=> setIsLogin(false)}>Register</span></p>
     </form>
   )

@@ -3,11 +3,17 @@ import bodyParser from 'body-parser';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
-import 'dotenv/config';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
+import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
 import { User, Booking, Flight } from './schemas.js';
+
+dotenv.config({ path: new URL('./.env', import.meta.url) });
 
 
 const app = express();
+const JWT_SECRET = process.env.JWT_SECRET || 'development-only-change-this-secret';
 
 app.use(express.json());
 app.use(bodyParser.json({limit: "30mb", extended: true}))
@@ -16,7 +22,9 @@ app.use(cors());
 
 const requireAdmin = async (req, res, next) => {
     try {
-        const user = await User.findById(req.header('x-user-id'));
+        const token = req.header('authorization')?.replace('Bearer ', '');
+        const claims = jwt.verify(token, JWT_SECRET);
+        const user = await User.findById(claims.userId);
         if (!user || user.usertype !== 'admin') {
             return res.status(403).json({ message: 'Admin access required' });
         }
@@ -29,7 +37,9 @@ const requireAdmin = async (req, res, next) => {
 
 const requireUser = async (req, res, next) => {
     try {
-        const user = await User.findById(req.header('x-user-id'));
+        const token = req.header('authorization')?.replace('Bearer ', '');
+        const claims = jwt.verify(token, JWT_SECRET);
+        const user = await User.findById(claims.userId);
         if (!user) return res.status(401).json({ message: 'Login required' });
         req.user = user;
         next();
@@ -37,6 +47,18 @@ const requireUser = async (req, res, next) => {
         return res.status(401).json({ message: 'Login required' });
     }
 };
+
+const publicUser = (user) => {
+    const safeUser = user.toObject();
+    delete safeUser.password;
+    return safeUser;
+};
+
+const mailer = process.env.SMTP_HOST ? nodemailer.createTransport({
+    host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
+}) : null;
 
 // mongoose setup
 
@@ -52,6 +74,9 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     app.post('/register', async (req, res) => {
         const { username, email, usertype, password } = req.body;
+        if (!['customer', 'flight-operator'].includes(usertype)) {
+            return res.status(400).json({ message: 'Invalid user type' });
+        }
         let approval = 'approved';
         try {
           
@@ -69,7 +94,7 @@ mongoose.connect(process.env.MONGODB_URI, {
                 username, email, usertype, password: hashedPassword, approval
             });
             const userCreated = await newUser.save();
-            return res.status(201).json(userCreated);
+            return res.status(201).json({ ...publicUser(userCreated), token: jwt.sign({ userId: userCreated._id }, JWT_SECRET, { expiresIn: '2h' }) });
 
         } catch (error) {
           console.log(error);
@@ -90,8 +115,8 @@ mongoose.connect(process.env.MONGODB_URI, {
             if (!isMatch) {
                 return res.status(401).json({ message: 'Invalid email or password' });
             } else{
-                
-                return res.json(user);
+                if (user.usertype === 'flight-operator' && user.approval !== 'approved') return res.status(403).json({ message: 'Operator approval is required before login' });
+                return res.json({ ...publicUser(user), token: jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '2h' }) });
             }
           
         } catch (error) {
@@ -111,6 +136,40 @@ mongoose.connect(process.env.MONGODB_URI, {
         req.user.password = await bcrypt.hash(newPassword, 10);
         await req.user.save();
         res.json({ message: 'Password changed successfully' });
+    });
+
+    app.post('/forgot-password', async (req, res) => {
+        const { email } = req.body;
+        if (!mailer) return res.status(503).json({ message: 'Email OTP is not configured. Add Brevo SMTP values to server/.env' });
+        const user = await User.findOne({ email: email?.trim().toLowerCase() });
+        if (!user) return res.status(404).json({ message: 'Customer does not exist' });
+        const resetCode = crypto.randomInt(100000, 1000000).toString();
+        user.resetCodeHash = crypto.createHash('sha256').update(resetCode).digest('hex');
+        user.resetCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+        await user.save();
+        try {
+            await mailer.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to: user.email, subject: 'SKY Furaito password reset OTP', text: `Your OTP is ${resetCode}. It expires in 10 minutes.` });
+        } catch (error) {
+            user.resetCodeHash = undefined;
+            user.resetCodeExpires = undefined;
+            await user.save();
+            console.error('SMTP send failed:', error.message);
+            return res.status(502).json({ message: 'Brevo rejected the email. Check SMTP key and verified sender.' });
+        }
+        res.json({ message: 'If the email is registered, an OTP has been sent.' });
+    });
+
+    app.post('/forgot-password/confirm', async (req, res) => {
+        const { email, otp, newPassword } = req.body;
+        if (!email || !otp || typeof newPassword !== 'string' || newPassword.length < 6) return res.status(400).json({ message: 'Email, OTP, and a 6-character password are required' });
+        const user = await User.findOne({ email: email.trim().toLowerCase() });
+        const codeHash = crypto.createHash('sha256').update(String(otp)).digest('hex');
+        if (!user || !user.resetCodeExpires || user.resetCodeExpires < new Date() || user.resetCodeHash !== codeHash) return res.status(400).json({ message: 'OTP is invalid or expired' });
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.resetCodeHash = undefined;
+        user.resetCodeExpires = undefined;
+        await user.save();
+        res.json({ message: 'Password reset successfully. Sign in with your new password.' });
     });
 
     app.put('/profile', requireUser, async (req, res) => {
@@ -157,13 +216,16 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     // fetch user
 
-    app.get('/fetch-user/:id', async (req, res)=>{
+    app.get('/fetch-user/:id', requireUser, async (req, res)=>{
+        if (req.user.usertype !== 'admin' && req.user._id.toString() !== req.params.id) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
         const id = await req.params.id;
         console.log(req.params.id)
         try{
             const user = await User.findById(req.params.id);
             console.log(user);
-            res.json(user);
+            res.json(publicUser(user));
 
         }catch(err){
             console.log(err);
@@ -172,10 +234,10 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     // fetch all users
 
-    app.get('/fetch-users', async (req, res)=>{
+    app.get('/fetch-users', requireAdmin, async (req, res)=>{
 
         try{
-            const users = await User.find();
+            const users = await User.find().select('-password -resetCodeHash -resetCodeExpires');
             res.json(users);
 
         }catch(err){
@@ -235,19 +297,26 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     // Add flight
 
-    app.post('/add-flight', async (req, res)=>{
+    app.post('/add-flight', requireUser, async (req, res)=>{
         const {flightName, flightId, origin, destination, departureTime, 
                                 arrivalTime, basePrice, totalSeats} = req.body;
+        if (!['admin', 'flight-operator'].includes(req.user.usertype) || (req.user.usertype === 'flight-operator' && req.user.approval !== 'approved')) {
+            return res.status(403).json({ message: 'Approved operator or admin access required' });
+        }
+        if (!flightId?.trim() || !origin || !destination || !departureTime || !arrivalTime || Number(basePrice) <= 0 || Number(totalSeats) <= 0) {
+            return res.status(400).json({ message: 'Complete valid flight details are required' });
+        }
         try{
 
-            const flight = new Flight({flightName, flightId, origin, destination, 
-                                        departureTime, arrivalTime, basePrice, totalSeats});
-            const newFlight = flight.save();
+            const flight = new Flight({ flightName: req.user.usertype === 'flight-operator' ? req.user.username : flightName, flightId: flightId.trim(), operator: req.user._id, origin, destination,
+                                        departureTime, arrivalTime, scheduleDate: req.body.scheduleDate || new Date(Date.now() + 86400000), basePrice: Number(basePrice), totalSeats: Number(totalSeats)});
+            await flight.save();
 
             res.json({message: 'flight added'});
 
         }catch(err){
-            console.log(err);
+            if (err.code === 11000) return res.status(409).json({ message: 'Flight ID already exists' });
+            res.status(500).json({ message: 'Server Error' });
         }
     })
 
@@ -257,7 +326,7 @@ mongoose.connect(process.env.MONGODB_URI, {
             return res.status(400).json({ message: 'Complete valid flight details are required' });
         }
         try {
-            const flight = await Flight.create({ flightName: flightName.trim(), flightId: flightId.trim(), origin, destination, departureTime, arrivalTime, basePrice: Number(basePrice), totalSeats: Number(totalSeats) });
+            const flight = await Flight.create({ flightName: flightName.trim(), flightId: flightId.trim(), origin, destination, scheduleDate: req.body.scheduleDate || new Date(Date.now() + 86400000), departureTime, arrivalTime, basePrice: Number(basePrice), totalSeats: Number(totalSeats) });
             res.status(201).json(flight);
         } catch (error) {
             if (error.code === 11000) return res.status(409).json({ message: 'Flight ID already exists' });
@@ -278,12 +347,16 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     // update flight
     
-    app.put('/update-flight', requireAdmin, async (req, res)=>{
+    app.put('/update-flight', requireUser, async (req, res)=>{
         const {_id, flightName, flightId, origin, destination, 
-                    departureTime, arrivalTime, basePrice, totalSeats} = req.body;
+                departureTime, arrivalTime, scheduleDate, basePrice, totalSeats} = req.body;
         try{
 
-            const flight = await Flight.findById(_id)
+            const flight = await Flight.findById(_id);
+            if (!flight) return res.status(404).json({ message: 'Flight not found' });
+            if (req.user.usertype !== 'admin' && (!flight.operator || flight.operator.toString() !== req.user._id.toString() || req.user.approval !== 'approved')) {
+                return res.status(403).json({ message: 'Only the owner or an admin can update this flight' });
+            }
 
             flight.flightName = flightName;
             flight.flightId = flightId;
@@ -291,10 +364,11 @@ mongoose.connect(process.env.MONGODB_URI, {
             flight.destination = destination;
             flight.departureTime = departureTime;
             flight.arrivalTime = arrivalTime;
+            if (scheduleDate) flight.scheduleDate = scheduleDate;
             flight.basePrice = basePrice;
             flight.totalSeats = totalSeats;
 
-            const newFlight = flight.save();
+            await flight.save();
 
             res.json({message: 'flight updated'});
 
@@ -308,8 +382,22 @@ mongoose.connect(process.env.MONGODB_URI, {
     app.get('/fetch-flights', async (req, res)=>{
         
         try{
-            const flights = await Flight.find();
-            res.json(flights);
+            const query = {};
+            if (req.query.origin) query.origin = req.query.origin;
+            if (req.query.destination) query.destination = req.query.destination;
+            if (req.query.scheduleDate) {
+                const start = new Date(req.query.scheduleDate);
+                const end = new Date(start);
+                end.setDate(end.getDate() + 1);
+                query.scheduleDate = { $gte: start, $lt: end };
+            }
+            const flights = await Flight.find(query);
+            const results = await Promise.all(flights.map(async (flight) => {
+                const bookings = await Booking.find({ flight: flight._id, journeyDate: flight.scheduleDate, bookingStatus: { $nin: ['cancelled', 'completed'] } }).select('passengers');
+                const bookedSeats = bookings.reduce((total, booking) => total + booking.passengers.length, 0);
+                return { ...flight.toObject(), availableSeats: Math.max(flight.totalSeats - bookedSeats, 0) };
+            }));
+            res.json(results);
 
         }catch(err){
             console.log(err);
@@ -334,10 +422,16 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     // fetch all bookings
 
-    app.get('/fetch-bookings', async (req, res)=>{
+    app.get('/fetch-bookings', requireUser, async (req, res)=>{
         
         try{
-            const bookings = await Booking.find();
+            let query = {};
+            if (req.user.usertype === 'customer') query.user = req.user._id;
+            if (req.user.usertype === 'flight-operator') {
+                const operatorFlights = await Flight.find({ operator: req.user._id }).select('_id');
+                query.flight = { $in: operatorFlights.map((flight) => flight._id) };
+            }
+            const bookings = await Booking.find(query);
             res.json(bookings);
 
         }catch(err){
@@ -347,12 +441,28 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     // Book ticket
 
-    app.post('/book-ticket', async (req, res)=>{
+    app.post('/book-ticket', requireUser, async (req, res)=>{
         const {user, flight, flightName, flightId,  departure, destination, 
                     email, mobile, passengers, totalPrice, journeyDate, journeyTime, seatClass} = req.body;
         try{
-            const bookings = await Booking.find({flight: flight, journeyDate: journeyDate, seatClass: seatClass});
+            const selectedFlight = await Flight.findById(flight);
+            const allowedClasses = ['economy', 'premium-economy', 'business', 'first-class'];
+            const journey = new Date(journeyDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (!selectedFlight || !allowedClasses.includes(seatClass) || !Array.isArray(passengers) || passengers.length < 1 || passengers.length > 9 || Number.isNaN(journey.getTime()) || journey < today) {
+                return res.status(400).json({ message: 'Invalid booking details' });
+            }
+            if (passengers.some((passenger) => typeof passenger.name !== 'string' || !passenger.name.trim() || Number(passenger.age) < 0 || Number(passenger.age) > 120)) {
+                return res.status(400).json({ message: 'Passenger names and ages are invalid' });
+            }
+            const nextDay = new Date(journey);
+            nextDay.setDate(nextDay.getDate() + 1);
+            const bookings = await Booking.find({ flight: selectedFlight._id, journeyDate: { $gte: journey, $lt: nextDay }, bookingStatus: { $nin: ['cancelled', 'completed'] } });
             const numBookedSeats = bookings.reduce((acc, booking) => acc + booking.passengers.length, 0);
+            if (numBookedSeats + passengers.length > selectedFlight.totalSeats) {
+                return res.status(409).json({ message: 'Not enough seats available' });
+            }
             
             let seats = "";
             const seatCode = {'economy': 'E', 'premium-economy': 'P', 'business': 'B', 'first-class': 'A'};
@@ -364,8 +474,8 @@ mongoose.connect(process.env.MONGODB_URI, {
                     seats = seats.concat(", ", coach, '-', i);
                 }
             }
-            const booking = new Booking({user, flight, flightName, flightId, departure, destination, 
-                                            email, mobile, passengers, totalPrice, journeyDate, journeyTime, seatClass, seats});
+            const booking = new Booking({ user: req.user._id, flight: selectedFlight._id, flightName: selectedFlight.flightName, flightId: selectedFlight.flightId, departure: selectedFlight.origin, destination: selectedFlight.destination,
+                                            email, mobile, passengers, totalPrice: selectedFlight.basePrice * passengers.length, journeyDate: journey, journeyTime, seatClass, seats});
             await booking.save();
 
             res.json({message: 'Booking successful!!'});
@@ -377,10 +487,15 @@ mongoose.connect(process.env.MONGODB_URI, {
 
     // cancel ticket
 
-    app.put('/cancel-ticket/:id', async (req, res)=>{
+    app.put('/cancel-ticket/:id', requireUser, async (req, res)=>{
         const id = await req.params.id;
         try{
             const booking = await Booking.findById(req.params.id);
+            if (!booking) return res.status(404).json({ message: 'Booking not found' });
+            if (req.user.usertype !== 'admin' && booking.user.toString() !== req.user._id.toString()) {
+                return res.status(403).json({ message: 'Access denied' });
+            }
+            if (booking.bookingStatus !== 'confirmed') return res.status(400).json({ message: 'Booking is already cancelled' });
             booking.bookingStatus = 'cancelled';
             await booking.save();
             res.json({message: "booking cancelled"});
@@ -396,12 +511,24 @@ mongoose.connect(process.env.MONGODB_URI, {
             return res.status(400).json({ message: 'Journey date, time, and seat class are required' });
         }
         try {
-            const booking = await Booking.findByIdAndUpdate(
-                req.params.id,
-                { $set: { journeyDate, journeyTime, seatClass } },
-                { new: true, runValidators: true }
-            );
+            const booking = await Booking.findById(req.params.id);
             if (!booking) return res.status(404).json({ message: 'Booking not found' });
+            if (booking.bookingStatus !== 'confirmed') return res.status(400).json({ message: 'Only confirmed bookings can be modified' });
+            const journey = new Date(journeyDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (Number.isNaN(journey.getTime()) || journey < today) return res.status(400).json({ message: 'Journey date must be today or later' });
+            const nextDay = new Date(journey);
+            nextDay.setDate(nextDay.getDate() + 1);
+            const otherBookings = await Booking.find({ _id: { $ne: booking._id }, flight: booking.flight, journeyDate: { $gte: journey, $lt: nextDay }, bookingStatus: { $nin: ['cancelled', 'completed'] } }).select('passengers');
+            const flight = await Flight.findById(booking.flight);
+            const bookedSeats = otherBookings.reduce((total, item) => total + item.passengers.length, 0);
+            if (!flight || bookedSeats + booking.passengers.length > flight.totalSeats) return res.status(409).json({ message: 'Not enough seats available for the new date' });
+            booking.journeyDate = journey;
+            booking.journeyTime = journeyTime;
+            booking.seatClass = seatClass;
+            booking.totalPrice = flight.basePrice * booking.passengers.length;
+            await booking.save();
             res.json(booking);
         } catch (error) {
             res.status(500).json({ message: 'Server Error' });

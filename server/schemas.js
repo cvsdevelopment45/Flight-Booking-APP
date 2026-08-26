@@ -5,11 +5,15 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     usertype: { type: String, required: true },
     password: { type: String, required: true },
-    approval: {type: String, default: 'approved'}
+    approval: {type: String, default: 'approved'},
+    resetCodeHash: { type: String },
+    resetCodeExpires: { type: Date }
 });
 const flightSchema = new mongoose.Schema({
     flightName: { type: String, required: true },
-    flightId: { type: String, required: true },
+    flightId: { type: String, required: true, unique: true },
+    operator: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
+    scheduleDate: { type: Date, required: true },
     origin: { type: String, required: true },
     destination: { type: String, required: true },
     departureTime: { type: String, required: true },
@@ -35,8 +39,9 @@ const bookingSchema = new mongoose.Schema({
     bookingDate: { type: Date, default: Date.now },
     journeyDate: { type: Date },
     journeyTime: { type: String },
-    seatClass: { type: String},
-    bookingStatus: {type: String, default: "confirmed"}
+    seatClass: {type: String, enum: ['economy', 'premium-economy', 'business', 'first-class']},
+    bookingStatus: {type: String, enum: ['pending', 'confirmed', 'cancelled', 'completed'], default: "confirmed"},
+    paymentStatus: { type: String, enum: ['unpaid', 'paid', 'refunded'], default: 'unpaid' }
   });
 
 export const User =  mongoose.model('users', userSchema);

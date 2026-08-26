@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import '../styles/Authenticate.css';
+import { notify } from '../utils/notify';
 
 const ChangePassword = () => {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -9,15 +10,15 @@ const ChangePassword = () => {
 
   const changePassword = async (event) => {
     event.preventDefault();
-    if (newPassword !== confirmation) return alert('New passwords do not match');
+    if (newPassword !== confirmation) return notify('New passwords do not match', 'error');
     try {
-      await axios.put('http://localhost:6001/change-password', { currentPassword, newPassword }, { headers: { 'x-user-id': localStorage.getItem('userId') } });
-      alert('Password changed successfully');
+      await axios.put('http://localhost:6001/change-password', { currentPassword, newPassword });
+      notify('Password changed successfully', 'success');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmation('');
     } catch (error) {
-      alert(error.response?.data?.message || 'Unable to change password');
+      notify(error.response?.data?.message || 'Unable to change password', 'error');
     }
   };
 
