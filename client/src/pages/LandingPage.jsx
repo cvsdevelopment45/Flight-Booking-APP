@@ -8,16 +8,20 @@ const LandingPage = () => {
 
   const [error, setError] = useState('');
   const [checkBox, setCheckBox] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
 
   const [departure, setDeparture] = useState('');
   const [destination, setDestination] = useState('');
-  const [departureDate, setDepartureDate] = useState();
-  const [returnDate, setReturnDate] = useState();
+  const [departureDate, setDepartureDate] = useState('');
+  const [returnDate, setReturnDate] = useState('');
 
 
 
   const navigate = useNavigate();
+  const {setTicketBookingDate} = useContext(GeneralContext);
+  const userId = localStorage.getItem('userId');
+
   useEffect(()=>{
     
     if(localStorage.getItem('userType') === 'admin'){
@@ -29,41 +33,49 @@ const LandingPage = () => {
 
   const [Flights, setFlights] = useState([]);
 
-  const fetchFlights = async () =>{
+  const parseLocalDate = (value) => {
+    const [year, month, day] = String(value).split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
 
-    if(checkBox){
-      if(departure !== "" && destination !== "" && departureDate && returnDate){
-        const date = new Date();
-        const date1 = new Date(departureDate);
-        const date2 = new Date(returnDate);
-        if(date1 > date && date2 > date1){
-          setError("");
-          await axios.get('http://localhost:6001/fetch-flights', { params: { origin: departure, destination, scheduleDate: departureDate } }).then(
-              (response)=>{
-                setFlights(response.data);
-                console.log(response.data)
-              }
-           )
-        } else{ setError("Please check the dates"); }
-      } else{ setError("Please fill all the inputs"); }
-    }else{
-      if(departure !== "" && destination !== "" && departureDate){
-        const date = new Date();
-        const date1 = new Date(departureDate);
-        if(date1 >= date){
-          setError("");
-          await axios.get('http://localhost:6001/fetch-flights', { params: { origin: departure, destination, scheduleDate: departureDate } }).then(
-              (response)=>{
-                setFlights(response.data);
-                console.log(response.data)
-              }
-           )
-        } else{ setError("Please check the dates"); }      
-      } else{ setError("Please fill all the inputs"); }
+  const fetchFlights = async () =>{
+    if(departure === "" || destination === "" || !departureDate || (checkBox && !returnDate)){
+      setError("Please fill all the inputs");
+      return;
     }
+    if(departure === destination){
+      setError("Departure and destination must be different");
+      return;
     }
-    const {setTicketBookingDate} = useContext(GeneralContext);
-    const userId = localStorage.getItem('userId');
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const date1 = parseLocalDate(departureDate);
+    const date2 = checkBox ? parseLocalDate(returnDate) : null;
+
+    if(Number.isNaN(date1.getTime()) || date1 < today || (checkBox && (Number.isNaN(date2.getTime()) || date2 < date1))){
+      setError("Please check the dates");
+      return;
+    }
+
+    setError("");
+    try{
+      const response = await axios.get('http://localhost:6001/fetch-flights', {
+        params: {
+          origin: departure,
+          destination,
+          journeyDate: departureDate,
+          ...(checkBox ? { roundTrip: 'true', returnDate } : {})
+        }
+      });
+      setFlights(Array.isArray(response.data) ? response.data : []);
+      setHasSearched(true);
+    }catch(err){
+      setFlights([]);
+      setHasSearched(true);
+      setError(err.response?.data?.message || "Unable to search flights. Make sure the server is running.");
+    }
+  }
 
 
     const handleTicketBooking = async (id, origin, destination) =>{
@@ -80,6 +92,10 @@ const LandingPage = () => {
         navigate('/auth');
       }
     }
+
+    const matchingFlights = checkBox
+      ? Flights.filter((flight) => (flight.origin === departure && flight.destination === destination) || (flight.origin === destination && flight.destination === departure))
+      : Flights.filter((flight) => flight.origin === departure && flight.destination === destination);
 
 
 
@@ -141,13 +157,13 @@ const LandingPage = () => {
                       <label htmlFor="floatingSelect">Destination City</label>
                     </div>
                     <div className="form-floating mb-3">
-                      <input type="date" className="form-control" id="floatingInputstartDate" value={departureDate} onChange={(e)=>setDepartureDate(e.target.value)}/>
+                      <input type="date" className="form-control" id="floatingInputstartDate" value={departureDate} min={new Date().toISOString().slice(0, 10)} onChange={(e)=>setDepartureDate(e.target.value)}/>
                       <label htmlFor="floatingInputstartDate">Journey date</label>
                     </div>
                     {checkBox ?
                     
                       <div className="form-floating mb-3">
-                        <input type="date" className="form-control" id="floatingInputreturnDate" value={returnDate} onChange={(e)=>setReturnDate(e.target.value)}/>
+                        <input type="date" className="form-control" id="floatingInputreturnDate" value={returnDate} min={departureDate || new Date().toISOString().slice(0, 10)} onChange={(e)=>setReturnDate(e.target.value)}/>
                         <label htmlFor="floatingInputreturnDate">Return date</label>
                       </div>
                     
@@ -162,23 +178,13 @@ const LandingPage = () => {
                   <p>{error}</p>
               </div>
                   
-                {Flights.length > 0 
+                {hasSearched
                 ?
-                <>
-                {
-                  Flights.filter(Flight => Flight.origin === departure && Flight.destination === destination).length > 0 ? 
-                  <>
+                matchingFlights.length > 0 ?
                   <div className="availableFlightsContainer">
                     <h1>Available Flights</h1>
-
                     <div className="Flights">
-
-                      {checkBox ?
-                      
-                      <>
-                        {Flights.filter(Flight => (Flight.origin === departure && Flight.destination === destination ) || (Flight.origin === destination && Flight.destination === departure)).map((Flight)=>{
-                        return(
-
+                      {matchingFlights.map((Flight)=>(
                         <div className="Flight" key={Flight._id}>
                             <div>
                                 <p> <b>{Flight.flightName}</b></p>
@@ -198,50 +204,13 @@ const LandingPage = () => {
                             </div>
                             <button className="button btn btn-primary" onClick={()=>handleTicketBooking(Flight._id, Flight.origin, Flight.destination)}>Book Now</button>
                         </div>
-                        )
-                      })}
-                      </>
-                      :
-                      <>
-                      {Flights.filter(Flight => Flight.origin === departure && Flight.destination === destination).map((Flight)=>{
-                        return(
-
-                        <div className="Flight">
-                            <div>
-                                <p> <b>{Flight.flightName}</b></p>
-                                <p ><b>Flight Number:</b> {Flight.flightId}</p>
-                            </div>
-                            <div>
-                                <p ><b>Start :</b> {Flight.origin}</p>
-                                <p ><b>Departure Time:</b> {Flight.departureTime}</p>
-                            </div>
-                            <div>
-                                <p ><b>Destination :</b> {Flight.destination}</p>
-                                <p ><b>Arrival Time:</b> {Flight.arrivalTime}</p>
-                            </div>
-                            <div>
-                                <p ><b>Starting Price:</b> {Flight.basePrice}</p>
-                                <p ><b>Available Seats:</b> {Flight.availableSeats ?? Flight.totalSeats}</p>
-                            </div>
-                            <button className="button btn btn-primary" onClick={()=>handleTicketBooking(Flight._id, Flight.origin, Flight.destination)}>Book Now</button>
-                        </div>
-                        )
-                      })}
-                      </>}
-
-                      
-
+                      ))}
                     </div>
                   </div>
-                  </>
                   :
-                  <>
-                   <div className="availableFlightsContainer">
+                  <div className="availableFlightsContainer">
                     <h1> No Flights</h1>
-                    </div>
-                  </>
-                }
-                </>
+                  </div>
                 :
                 <></>
                 }

@@ -383,17 +383,32 @@ mongoose.connect(process.env.MONGODB_URI, {
         
         try{
             const query = {};
-            if (req.query.origin) query.origin = req.query.origin;
-            if (req.query.destination) query.destination = req.query.destination;
-            if (req.query.scheduleDate) {
-                const start = new Date(req.query.scheduleDate);
-                const end = new Date(start);
-                end.setDate(end.getDate() + 1);
-                query.scheduleDate = { $gte: start, $lt: end };
+            if (req.query.origin && req.query.destination && req.query.roundTrip === 'true') {
+                query.$or = [
+                    { origin: req.query.origin, destination: req.query.destination },
+                    { origin: req.query.destination, destination: req.query.origin }
+                ];
+            } else {
+                if (req.query.origin) query.origin = req.query.origin;
+                if (req.query.destination) query.destination = req.query.destination;
             }
+            const dayRange = (value) => {
+                if (!value) return null;
+                const start = new Date(`${value}T00:00:00.000Z`);
+                if (Number.isNaN(start.getTime())) return null;
+                const end = new Date(start);
+                end.setUTCDate(end.getUTCDate() + 1);
+                return { $gte: start, $lt: end };
+            };
             const flights = await Flight.find(query);
             const results = await Promise.all(flights.map(async (flight) => {
-                const bookings = await Booking.find({ flight: flight._id, journeyDate: flight.scheduleDate, bookingStatus: { $nin: ['cancelled', 'completed'] } }).select('passengers');
+                const isReturnLeg = req.query.roundTrip === 'true' && req.query.origin && flight.origin === req.query.destination;
+                const journeyFilter = dayRange(isReturnLeg ? req.query.returnDate : (req.query.journeyDate || req.query.scheduleDate));
+                const bookings = await Booking.find({
+                    flight: flight._id,
+                    ...(journeyFilter ? { journeyDate: journeyFilter } : {}),
+                    bookingStatus: { $nin: ['cancelled', 'completed'] }
+                }).select('passengers');
                 const bookedSeats = bookings.reduce((total, booking) => total + booking.passengers.length, 0);
                 return { ...flight.toObject(), availableSeats: Math.max(flight.totalSeats - bookedSeats, 0) };
             }));
@@ -401,6 +416,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 
         }catch(err){
             console.log(err);
+            res.status(500).json({ message: 'Server Error' });
         }
     })
 

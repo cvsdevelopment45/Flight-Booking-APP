@@ -30,7 +30,7 @@ function App() {
       <Routes>
         <Route exact path = '' element={<LandingPage />} />
         <Route path='/auth' element={<LoginProtector> <Authenticate /> </LoginProtector>} />
-        <Route path='/book-Flight/:id' element={<AuthProtector> <BookFlight /> </AuthProtector>} />
+        <Route path='/book-flight/:id' element={<AuthProtector> <BookFlight /> </AuthProtector>} />
         <Route path='/bookings' element={<AuthProtector> <Bookings /> </AuthProtector>} />
         <Route path='/change-password' element={<AuthProtector> <ChangePassword /> </AuthProtector>} />
         <Route path='/profile' element={<AuthProtector> <Profile /> </AuthProtector>} />
