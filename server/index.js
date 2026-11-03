@@ -60,6 +60,63 @@ const mailer = process.env.SMTP_HOST ? nodemailer.createTransport({
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
 }) : null;
 
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[character]));
+
+const formatJourneyDate = (date) => {
+    const parsedDate = date ? new Date(date) : null;
+    return parsedDate && !Number.isNaN(parsedDate.getTime())
+        ? parsedDate.toISOString().slice(0, 10)
+        : 'Not specified';
+};
+
+const sendBookingNotification = async (booking, event) => {
+    if (!mailer || !booking?.email) {
+        console.warn(`Booking ${event} email not sent: ${!mailer ? 'SMTP is not configured' : 'booking email is missing'}`);
+        return false;
+    }
+
+    const eventLabels = {
+        booked: 'Booking confirmed',
+        modified: 'Booking details updated',
+        cancelled: 'Booking cancelled'
+    };
+    const label = eventLabels[event];
+    const details = [
+        ['Booking status', booking.bookingStatus],
+        ['Flight', `${booking.flightName || 'Flight'} (${booking.flightId || 'N/A'})`],
+        ['Route', `${booking.departure || 'N/A'} to ${booking.destination || 'N/A'}`],
+        ['Journey date', formatJourneyDate(booking.journeyDate)],
+        ['Departure time', booking.journeyTime || 'Not specified'],
+        ['Seat class', booking.seatClass || 'Not specified'],
+        ['Seats', booking.seats || 'Not assigned'],
+        ['Passengers', (booking.passengers || []).map(({ name, age }) => `${name || 'Passenger'}${age != null ? ` (age ${age})` : ''}`).join(', ') || 'Not specified'],
+        ['Total price', booking.totalPrice != null ? String(booking.totalPrice) : 'Not specified'],
+        ['Payment status', booking.paymentStatus || 'Not specified'],
+        ['Contact phone', booking.mobile || 'Not provided']
+    ];
+    const text = `${label}\n\n${details.map(([name, value]) => `${name}: ${value}`).join('\n')}`;
+    const htmlDetails = details.map(([name, value]) =>
+        `<tr><th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">${escapeHtml(name)}</th><td style="padding:8px;border-bottom:1px solid #e5e7eb">${escapeHtml(value)}</td></tr>`
+    ).join('');
+
+    try {
+        const sender = process.env.SMTP_FROM || process.env.SMTP_USER;
+        await mailer.sendMail({
+            from: `"SKY Furaito" <${sender}>`,
+            to: booking.email,
+            subject: `SKY Furaito: ${label} - ${booking.flightId || 'Flight booking'}`,
+            text,
+            html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:24px;color:#1f2937"><h2 style="color:#0284c7">${escapeHtml(label)}</h2><p>Here are your current booking details:</p><table style="width:100%;border-collapse:collapse">${htmlDetails}</table><p style="margin-top:24px;color:#6b7280">Thank you for choosing SKY Furaito.</p></div>`
+        });
+        return true;
+    } catch (error) {
+        console.error(`Booking ${event} email failed:`, error.message);
+        return false;
+    }
+};
+
 // mongoose setup
 
 const PORT = 6001;
@@ -615,17 +672,15 @@ mongoose.connect(process.env.MONGODB_URI, {
                                             email, mobile, passengers, totalPrice: selectedFlight.basePrice * passengers.length, journeyDate: journey, journeyTime: journeyTime || selectedFlight.departureTime, seatClass, seats});
             await booking.save();
 
-            res.json({message: 'Booking successful!!'});
+            const emailSent = await sendBookingNotification(booking, 'booked');
+            res.json({ message: 'Booking successful!!', emailSent });
         }catch(err){
             console.log(err);
             res.status(500).json({ message: 'Server Error' });
         }
-    })
+        })
 
-
-    // cancel ticket
-
-    app.put('/cancel-ticket/:id', requireUser, async (req, res)=>{
+        app.put('/cancel-ticket/:id', requireUser, async (req, res)=>{
         try{
             const booking = await Booking.findById(req.params.id).populate('flight');
             if (!booking) return res.status(404).json({ message: 'Booking not found' });
@@ -643,7 +698,8 @@ mongoose.connect(process.env.MONGODB_URI, {
             if (booking.bookingStatus !== 'confirmed') return res.status(400).json({ message: 'Booking is already cancelled or completed' });
             booking.bookingStatus = 'cancelled';
             await booking.save();
-            res.json({message: "booking cancelled"});
+            const emailSent = await sendBookingNotification(booking, 'cancelled');
+            res.json({ message: 'booking cancelled', emailSent });
 
         }catch(err){
             console.log(err);
@@ -762,7 +818,8 @@ mongoose.connect(process.env.MONGODB_URI, {
             booking.totalPrice = targetFlight.basePrice * classMultiplier * numPassengers;
 
             await booking.save();
-            res.json(booking);
+            const emailSent = await sendBookingNotification(booking, 'modified');
+            res.json({ ...booking.toObject(), emailSent });
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: error.message || 'Server Error' });

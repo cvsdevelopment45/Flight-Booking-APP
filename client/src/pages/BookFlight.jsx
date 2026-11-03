@@ -101,7 +101,7 @@ const BookFlight = () => {
       
       await axios.post('http://localhost:6001/book-ticket', inputs).then(
         (response)=>{
-          notify("Booking successful", 'success');
+          notify(response.data.emailSent ? "Booking successful. Confirmation email sent." : "Booking successful, but the confirmation email could not be sent. Check the server's SMTP configuration.", response.data.emailSent ? 'success' : 'error');
           navigate('/bookings');
         }
       ).catch((err)=>{

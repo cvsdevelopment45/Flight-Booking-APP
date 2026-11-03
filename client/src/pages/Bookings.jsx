@@ -25,8 +25,8 @@ const Bookings = () => {
   }
   const cancelTicket = async (id) =>{
     try {
-      await axios.put(`http://localhost:6001/cancel-ticket/${id}`);
-      notify("Ticket cancelled!!", 'success');
+      const response = await axios.put(`http://localhost:6001/cancel-ticket/${id}`);
+      notify(response.data.emailSent ? "Ticket cancelled. Email confirmation sent." : "Ticket cancelled, but the email could not be sent. Check the server's SMTP configuration.", response.data.emailSent ? 'success' : 'error');
       fetchBookings();
     } catch (error) {
       notify(error.response?.data?.message || 'Unable to cancel ticket', 'error');
@@ -35,8 +35,8 @@ const Bookings = () => {
 
   const modifyBooking = async (id, values) => {
     try {
-      await axios.put(`http://localhost:6001/modify-booking/${id}`, values);
-      notify("Booking modified successfully!", 'success');
+      const response = await axios.put(`http://localhost:6001/modify-booking/${id}`, values);
+      notify(response.data.emailSent ? "Booking modified. Updated details emailed." : "Booking modified, but the email could not be sent. Check the server's SMTP configuration.", response.data.emailSent ? 'success' : 'error');
       fetchBookings();
     } catch (error) {
       notify(error.response?.data?.message || 'Unable to modify booking', 'error');
