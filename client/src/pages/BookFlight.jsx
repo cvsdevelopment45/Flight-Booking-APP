@@ -34,7 +34,7 @@ const BookFlight = () => {
     }
   
   
-    const [email, setEmail] = useState('');
+    const [email, setEmail] = useState(() => localStorage.getItem('email') || '');
     const [mobile, setMobile] = useState('');
     const [coachType, setCoachType] = useState('');
     const {ticketBookingDate} = useContext(GeneralContext);
@@ -93,6 +93,9 @@ const BookFlight = () => {
       if (isFlightInPast()) {
         return notify('Cannot book flight: The selected departure date and time has already passed.', 'error');
       }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        return notify('Enter a valid email address to receive booking details.', 'error');
+      }
 
       const inputs = {user: localStorage.getItem('userId'), flight: id, flightName, 
                                                   flightId, departure: StartCity, journeyTime: startTime, destination: destinationCity, 
@@ -128,7 +131,7 @@ const BookFlight = () => {
         
         <span>
           <div className="form-floating mb-3">
-                  <input type="email" className="form-control" id="floatingInputemail" value={email} onChange={(e)=> setEmail(e.target.value)} />
+                  <input type="email" className="form-control" id="floatingInputemail" value={email} onChange={(e)=> setEmail(e.target.value)} required />
                   <label htmlFor="floatingInputemail">Email</label>
             </div>
             <div className="form-floating mb-3">

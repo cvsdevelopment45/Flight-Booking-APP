@@ -60,6 +60,19 @@ const mailer = process.env.SMTP_HOST ? nodemailer.createTransport({
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
 }) : null;
 
+if (mailer) {
+    mailer.verify()
+        .then(() => console.info('SMTP connection and authentication verified.'))
+        .catch((error) => console.error('SMTP verification failed:', {
+            code: error.code,
+            responseCode: error.responseCode,
+            command: error.command,
+            message: error.message
+        }));
+} else {
+    console.warn('SMTP is not configured; booking emails will not be sent.');
+}
+
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[character]));
@@ -112,7 +125,12 @@ const sendBookingNotification = async (booking, event) => {
         });
         return true;
     } catch (error) {
-        console.error(`Booking ${event} email failed:`, error.message);
+        console.error(`Booking ${event} email failed:`, {
+            code: error.code,
+            responseCode: error.responseCode,
+            command: error.command,
+            message: error.message
+        });
         return false;
     }
 };
@@ -629,6 +647,9 @@ mongoose.connect(process.env.MONGODB_URI, {
         const {user, flight, flightName, flightId,  departure, destination, 
                     email, mobile, passengers, totalPrice, journeyDate, journeyTime, seatClass} = req.body;
         try{
+            if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+                return res.status(400).json({ message: 'Enter a valid email address to receive booking details' });
+            }
             const selectedFlight = await Flight.findById(flight);
             const allowedClasses = ['economy', 'premium-economy', 'business', 'first-class'];
             const journey = new Date(journeyDate);
@@ -669,7 +690,7 @@ mongoose.connect(process.env.MONGODB_URI, {
                 }
             }
             const booking = new Booking({ user: req.user._id, flight: selectedFlight._id, flightName: selectedFlight.flightName, flightId: selectedFlight.flightId, departure: selectedFlight.origin, destination: selectedFlight.destination,
-                                            email, mobile, passengers, totalPrice: selectedFlight.basePrice * passengers.length, journeyDate: journey, journeyTime: journeyTime || selectedFlight.departureTime, seatClass, seats});
+                                            email: email.trim().toLowerCase(), mobile, passengers, totalPrice: selectedFlight.basePrice * passengers.length, journeyDate: journey, journeyTime: journeyTime || selectedFlight.departureTime, seatClass, seats});
             await booking.save();
 
             const emailSent = await sendBookingNotification(booking, 'booked');
